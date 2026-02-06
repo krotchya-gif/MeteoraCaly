@@ -6,7 +6,6 @@ import ChartDashboard from './components/charts/ChartDashboard';
 
 const API_URL = 'https://meteora-calculator-api.infocyber001.workers.dev';
 
-// Error Boundary to catch rendering crashes
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -18,9 +17,9 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-4 m-4 bg-red-900/30 border border-red-500/50 rounded-xl text-center">
-          <p className="text-red-400 font-bold mb-2">Error loading component</p>
-          <p className="text-gray-400 text-sm">{this.state.error?.message || 'Unknown error'}</p>
+        <div className="p-4 m-4 bg-red-950 border border-red-700 rounded-xl text-center">
+          <p className="text-red-400 font-bold mb-2">Error</p>
+          <p className="text-gray-300 text-sm">{this.state.error?.message || 'Unknown error'}</p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
             className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm"
@@ -66,7 +65,6 @@ function App() {
     window.scrollTo(0, 0);
   };
 
-  // Transform pool data format for ComparisonView
   const comparisonPools = pools.map(pool => ({
     address: pool.id,
     name: pool.pair,
@@ -82,9 +80,9 @@ function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
-      {/* Top Tab Navigation - sticky */}
-      <nav className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700">
+    <div className="min-h-screen bg-slate-900">
+      {/* Top Tab Navigation */}
+      <nav className="sticky top-0 z-50 bg-slate-800 border-b border-slate-600">
         <div className="max-w-2xl mx-auto flex">
           {tabs.map(tab => {
             const Icon = tab.icon;
@@ -93,10 +91,10 @@ function App() {
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 px-2 text-sm font-medium transition-colors border-b-2 ${
+                className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-2 text-sm font-semibold transition-colors border-b-2 ${
                   isActive
-                    ? 'text-purple-400 border-purple-400'
-                    : 'text-gray-500 border-transparent hover:text-gray-300'
+                    ? 'text-white bg-purple-700 border-purple-400'
+                    : 'text-gray-300 border-transparent hover:bg-slate-700'
                 }`}
               >
                 <Icon className="w-4 h-4" />

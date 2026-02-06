@@ -71,14 +71,14 @@ function PoolCard({ pool, onSelect, isSelected }) {
       onClick={() => onSelect(pool)}
       className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
         isSelected
-          ? 'border-purple-500 bg-purple-500/10'
-          : 'border-slate-600 bg-slate-700/50 hover:border-purple-400'
+          ? 'border-purple-500 bg-purple-900'
+          : 'border-slate-600 bg-slate-800 hover:border-purple-400'
       }`}
     >
       <div className="flex justify-between items-start mb-3">
         <div>
           <h3 className="text-lg font-bold text-white">{pool.pair}</h3>
-          <span className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-300">
+          <span className="text-xs px-2 py-1 rounded bg-blue-900 text-blue-300">
             {pool.type}
           </span>
         </div>
@@ -196,7 +196,7 @@ function CalculatorView({ pool, onBack }) {
       </div>
       
       {/* Capital Input */}
-      <div className="bg-slate-700/50 p-4 rounded-xl">
+      <div className="bg-slate-800 p-4 rounded-xl">
         <label className="block text-sm text-gray-300 mb-2">Capital (USD)</label>
         <div className="relative">
           <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -212,7 +212,7 @@ function CalculatorView({ pool, onBack }) {
       </div>
       
       {/* Type Toggle */}
-      <div className="bg-slate-700/50 p-4 rounded-xl">
+      <div className="bg-slate-800 p-4 rounded-xl">
         <label className="block text-sm text-gray-300 mb-2">Pool Type</label>
         <div className="flex gap-2">
           <button
@@ -240,7 +240,7 @@ function CalculatorView({ pool, onBack }) {
       
       {/* Strategy Selector (DLMM only) */}
       {poolType === 'DLMM' && (
-        <div className="bg-slate-700/50 p-4 rounded-xl">
+        <div className="bg-slate-800 p-4 rounded-xl">
           <label className="block text-sm text-gray-300 mb-2">Strategy</label>
           <select
             value={strategy}
@@ -255,7 +255,7 @@ function CalculatorView({ pool, onBack }) {
       )}
       
       {/* Price Scenario */}
-      <div className="bg-slate-700/50 p-4 rounded-xl">
+      <div className="bg-slate-800 p-4 rounded-xl">
         <label className="block text-sm text-gray-300 mb-2">Price Scenario</label>
         <select
           value={priceScenario}
@@ -272,8 +272,8 @@ function CalculatorView({ pool, onBack }) {
       {results && (
         <div className="space-y-3">
           {/* Position Split */}
-          <div className="bg-gradient-to-br from-blue-900/30 to-slate-800/50 p-4 rounded-xl border border-blue-500/30">
-            <h3 className="text-sm font-semibold text-blue-300 mb-3">Your Position</h3>
+          <div className="bg-slate-800 p-4 rounded-xl border border-slate-600">
+            <h3 className="text-sm font-semibold text-blue-400 mb-3">Your Position</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-300">{pool.token0.symbol}:</span>
@@ -287,8 +287,8 @@ function CalculatorView({ pool, onBack }) {
           </div>
           
           {/* Fee Earnings */}
-          <div className="bg-gradient-to-br from-green-900/30 to-slate-800/50 p-4 rounded-xl border border-green-500/30">
-            <h3 className="text-sm font-semibold text-green-300 mb-3 flex items-center gap-2">
+          <div className="bg-slate-800 p-4 rounded-xl border border-slate-600">
+            <h3 className="text-sm font-semibold text-green-400 mb-3 flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
               Fee Earnings
             </h3>
@@ -305,8 +305,8 @@ function CalculatorView({ pool, onBack }) {
           </div>
           
           {/* IL & ROI */}
-          <div className="bg-gradient-to-br from-purple-900/30 to-slate-800/50 p-4 rounded-xl border border-purple-500/30">
-            <h3 className="text-sm font-semibold text-purple-300 mb-3">Performance</h3>
+          <div className="bg-slate-800 p-4 rounded-xl border border-slate-600">
+            <h3 className="text-sm font-semibold text-purple-400 mb-3">Performance</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-300">Impermanent Loss:</span>
@@ -316,7 +316,7 @@ function CalculatorView({ pool, onBack }) {
                 <span className="text-gray-300">IL Loss:</span>
                 <span className="text-red-400 font-mono">-${results.ilLoss.toFixed(2)}</span>
               </div>
-              <div className="border-t border-purple-500/30 my-2"></div>
+              <div className="border-t border-slate-600 my-2"></div>
               <div className="flex justify-between">
                 <span className="text-gray-300">Net Weekly:</span>
                 <span className={`font-bold text-lg ${results.netWeekly > 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -340,7 +340,7 @@ function CalculatorView({ pool, onBack }) {
           
           {/* Break-even */}
           {results.breakEvenDays > 0 && (
-            <div className="bg-yellow-900/20 p-3 rounded-lg border border-yellow-500/30 flex items-start gap-2">
+            <div className="bg-yellow-950 p-3 rounded-lg border border-yellow-700 flex items-start gap-2">
               <Info className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-yellow-200">
                 Break-even: <span className="font-bold">{results.breakEvenDays} days</span> to cover IL with fees
@@ -349,7 +349,7 @@ function CalculatorView({ pool, onBack }) {
           )}
           
           {/* Disclaimer */}
-          <div className="bg-red-900/20 p-3 rounded-lg border border-red-500/30 flex items-start gap-2">
+          <div className="bg-red-950 p-3 rounded-lg border border-red-700 flex items-start gap-2">
             <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
             <div className="text-xs text-red-200">
               Projections assume constant volume. Not financial advice. DYOR!
@@ -405,7 +405,7 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
         {view === 'pools' ? (
           <div className="space-y-4">
             {/* Search & Filter */}
-            <div className="bg-slate-800/50 p-4 rounded-xl space-y-3">
+            <div className="bg-slate-800 p-4 rounded-xl space-y-3">
               <input
                 type="text"
                 placeholder="Search pools..."
