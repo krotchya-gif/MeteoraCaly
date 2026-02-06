@@ -16,7 +16,7 @@ const CONFIG = {
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Max-Age': '86400',
 };
@@ -307,10 +307,78 @@ async function handleHealth(env) {
 }
 
 // ============================================
+// SUBSCRIBER HANDLERS
+// ============================================
+
+async function handleSubscribe(chatId, env) {
+  if (!chatId) {
+    return errorResponse('chatId is required', 400, 'INVALID_REQUEST');
+  }
+
+  const key = 'subscribers';
+  const existing = await env.POOL_CACHE.get(key, 'json') || [];
+
+  if (!existing.includes(String(chatId))) {
+    existing.push(String(chatId));
+    await env.POOL_CACHE.put(key, JSON.stringify(existing));
+  }
+
+  return jsonResponse({
+    success: true,
+    message: `Chat ${chatId} subscribed`,
+    total: existing.length,
+  });
+}
+
+async function handleUnsubscribe(chatId, env) {
+  if (!chatId) {
+    return errorResponse('chatId is required', 400, 'INVALID_REQUEST');
+  }
+
+  const key = 'subscribers';
+  const existing = await env.POOL_CACHE.get(key, 'json') || [];
+  const updated = existing.filter(id => id !== String(chatId));
+  await env.POOL_CACHE.put(key, JSON.stringify(updated));
+
+  return jsonResponse({
+    success: true,
+    message: `Chat ${chatId} unsubscribed`,
+    total: updated.length,
+  });
+}
+
+async function handleGetSubscribers(env) {
+  const subscribers = await env.POOL_CACHE.get('subscribers', 'json') || [];
+  return jsonResponse({
+    success: true,
+    data: { subscribers, count: subscribers.length },
+  });
+}
+
+async function handleGetTrending(env) {
+  const pools = await fetchAllPools(env);
+
+  // Sort by daily yield (highest first) for trending
+  const trending = [...pools]
+    .sort((a, b) => b.daily_yield - a.daily_yield)
+    .slice(0, 10);
+
+  return jsonResponse({
+    success: true,
+    data: {
+      pools: trending,
+      count: trending.length,
+      sorted_by: 'daily_yield',
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+// ============================================
 // ROUTER
 // ============================================
 
-function matchRoute(pathname) {
+function matchRoute(pathname, method) {
   // GET /api/health
   if (pathname === '/api/health') {
     return { handler: 'health' };
@@ -318,6 +386,10 @@ function matchRoute(pathname) {
   // GET /api/pools
   if (pathname === '/api/pools') {
     return { handler: 'pools' };
+  }
+  // GET /api/pools/trending
+  if (pathname === '/api/pools/trending') {
+    return { handler: 'trending' };
   }
   // GET /api/pools/top/:n
   const topMatch = pathname.match(/^\/api\/pools\/top\/(\d+)$/);
@@ -333,6 +405,15 @@ function matchRoute(pathname) {
   if (poolMatch) {
     return { handler: 'pool', params: { id: poolMatch[1] } };
   }
+  // POST/DELETE /api/subscribers/:chatId
+  const subMatch = pathname.match(/^\/api\/subscribers\/(.+)$/);
+  if (subMatch) {
+    return { handler: method === 'DELETE' ? 'unsubscribe' : 'subscribe', params: { chatId: subMatch[1] } };
+  }
+  // GET /api/subscribers
+  if (pathname === '/api/subscribers') {
+    return { handler: 'getSubscribers' };
+  }
   return null;
 }
 
@@ -347,8 +428,8 @@ export default {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    // Only allow GET
-    if (request.method !== 'GET') {
+    // Only allow GET, POST, DELETE
+    if (!['GET', 'POST', 'DELETE'].includes(request.method)) {
       return errorResponse('Method not allowed', 405, 'METHOD_NOT_ALLOWED');
     }
 
@@ -360,7 +441,7 @@ export default {
     }
 
     const url = new URL(request.url);
-    const route = matchRoute(url.pathname);
+    const route = matchRoute(url.pathname, request.method);
 
     if (!route) {
       // Root path - show API info
@@ -372,7 +453,11 @@ export default {
             'GET /api/pools',
             'GET /api/pool/:address',
             'GET /api/pools/top/:n',
+            'GET /api/pools/trending',
             'GET /api/pools/search?q=query',
+            'POST /api/subscribers/:chatId',
+            'DELETE /api/subscribers/:chatId',
+            'GET /api/subscribers',
             'GET /api/health',
           ],
         });
@@ -390,10 +475,18 @@ export default {
           return await handleGetPool(route.params.id, env);
         case 'top':
           return await handleGetTopPools(route.params.n, env);
+        case 'trending':
+          return await handleGetTrending(env);
         case 'search': {
           const query = url.searchParams.get('q');
           return await handleSearchPools(query, env);
         }
+        case 'subscribe':
+          return await handleSubscribe(route.params.chatId, env);
+        case 'unsubscribe':
+          return await handleUnsubscribe(route.params.chatId, env);
+        case 'getSubscribers':
+          return await handleGetSubscribers(env);
         default:
           return errorResponse('Not found', 404, 'NOT_FOUND');
       }

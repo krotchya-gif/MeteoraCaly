@@ -39,6 +39,83 @@ function escapeMarkdown(text) {
 }
 
 // ============================================
+// SUBSCRIBER HELPERS
+// ============================================
+
+async function fetchTrendingPools() {
+  try {
+    const res = await fetch(`${API_URL}/api/pools/trending`);
+    const data = await res.json();
+    if (data.success && data.data?.pools?.length > 0) {
+      return data.data.pools;
+    }
+  } catch (e) {
+    console.error('Failed to fetch trending:', e.message);
+  }
+  return null;
+}
+
+async function subscribeChatId(chatId) {
+  try {
+    const res = await fetch(`${API_URL}/api/subscribers/${chatId}`, { method: 'POST' });
+    const data = await res.json();
+    return data.success;
+  } catch (e) {
+    console.error('Subscribe error:', e.message);
+    return false;
+  }
+}
+
+async function unsubscribeChatId(chatId) {
+  try {
+    const res = await fetch(`${API_URL}/api/subscribers/${chatId}`, { method: 'DELETE' });
+    const data = await res.json();
+    return data.success;
+  } catch (e) {
+    console.error('Unsubscribe error:', e.message);
+    return false;
+  }
+}
+
+async function getSubscribers() {
+  try {
+    const res = await fetch(`${API_URL}/api/subscribers`);
+    const data = await res.json();
+    return data.success ? data.data.subscribers : [];
+  } catch (e) {
+    console.error('Get subscribers error:', e.message);
+    return [];
+  }
+}
+
+function buildTrendingMessage(pools) {
+  let msg = '🔥 *Top 10 Trending Pools \\(by Yield\\)*\n\n';
+
+  pools.forEach((pool, i) => {
+    const rank = i + 1;
+    const pair = escapeMarkdown(pool.pair);
+    const tvl = escapeMarkdown(formatNumber(pool.tvl));
+    const vol = escapeMarkdown(formatNumber(pool.volume_24h));
+    const fee = escapeMarkdown(formatNumber(pool.fees_24h));
+    const dy = escapeMarkdown(pool.daily_yield.toFixed(2));
+
+    let medal = '';
+    if (rank === 1) medal = '🥇 ';
+    else if (rank === 2) medal = '🥈 ';
+    else if (rank === 3) medal = '🥉 ';
+
+    msg += `*${medal}${rank}\\. ${pair}*\n`;
+    msg += `   Yield: ${dy}%/day \\| Fee: ${fee}\n`;
+    msg += `   TVL: ${tvl} \\| Vol: ${vol}\n\n`;
+  });
+
+  msg += `_Sorted by daily yield \\(fee/TVL\\)_\n`;
+  msg += `_Updated: ${escapeMarkdown(new Date().toLocaleString('id-ID'))}_`;
+
+  return msg;
+}
+
+// ============================================
 // COMMANDS
 // ============================================
 
@@ -58,7 +135,9 @@ Hitung potensi return dari DLMM & DAMM liquidity pools di Solana\\.
 *Commands:*
 /calc \\- Open calculator
 /top \\- Top 10 pools by volume
+/trending \\- Top pools by yield 🔥
 /pools \\- Search pools
+/subscribe \\- Daily alert trending
 /learn \\- Educational content
 /help \\- How to use
 
@@ -67,7 +146,8 @@ _Not financial advice\\. DYOR\\!_`,
       parse_mode: 'MarkdownV2',
       ...Markup.keyboard([
         [Markup.button.webApp('🧮 Open Calculator', MINI_APP_URL)],
-        ['/top', '/learn'],
+        ['/top', '/trending'],
+        ['/subscribe', '/learn'],
         ['/help']
       ]).resize()
     }
@@ -120,6 +200,65 @@ bot.command('top', async (ctx) => {
       [Markup.button.webApp('🧮 Analyze di Calculator', MINI_APP_URL)]
     ])
   );
+});
+
+bot.command('trending', async (ctx) => {
+  await ctx.reply('⏳ Fetching trending pools...');
+
+  const pools = await fetchTrendingPools();
+  if (!pools) {
+    return ctx.reply('❌ Gagal fetch trending pools. Coba lagi nanti.');
+  }
+
+  ctx.replyWithMarkdownV2(
+    buildTrendingMessage(pools),
+    Markup.inlineKeyboard([
+      [Markup.button.webApp('🧮 Analyze di Calculator', MINI_APP_URL)],
+      [Markup.button.callback('🔔 Subscribe Alert Harian', 'subscribe')]
+    ])
+  );
+});
+
+bot.command('subscribe', async (ctx) => {
+  const chatId = ctx.chat.id;
+  await ctx.reply('⏳ Subscribing...');
+
+  const success = await subscribeChatId(chatId);
+  if (success) {
+    ctx.reply(
+      '✅ Subscribed! Kamu akan menerima alert trending pools setiap hari.\n\n' +
+      'Gunakan /unsubscribe untuk berhenti.'
+    );
+  } else {
+    ctx.reply('❌ Gagal subscribe. Coba lagi nanti.');
+  }
+});
+
+bot.command('unsubscribe', async (ctx) => {
+  const chatId = ctx.chat.id;
+  await ctx.reply('⏳ Unsubscribing...');
+
+  const success = await unsubscribeChatId(chatId);
+  if (success) {
+    ctx.reply('✅ Unsubscribed! Kamu tidak akan menerima alert lagi.\n\nGunakan /subscribe untuk subscribe kembali.');
+  } else {
+    ctx.reply('❌ Gagal unsubscribe. Coba lagi nanti.');
+  }
+});
+
+bot.action('subscribe', async (ctx) => {
+  await ctx.answerCbQuery();
+  const chatId = ctx.chat.id;
+
+  const success = await subscribeChatId(chatId);
+  if (success) {
+    ctx.reply(
+      '✅ Subscribed! Kamu akan menerima alert trending pools setiap hari.\n\n' +
+      'Gunakan /unsubscribe untuk berhenti.'
+    );
+  } else {
+    ctx.reply('❌ Gagal subscribe. Coba lagi nanti.');
+  }
 });
 
 bot.command('pools', async (ctx) => {
@@ -229,7 +368,10 @@ Fee projections, IL, dan ROI
 *Commands:*
 /calc - Buka calculator
 /top - Top 10 pools
+/trending - Trending by yield 🔥
 /pools <keyword> - Cari pool
+/subscribe - Alert harian
+/unsubscribe - Stop alert
 /learn - Edukasi LP
 /about - Info bot
 
@@ -353,6 +495,64 @@ bot.on('text', (ctx) => {
 });
 
 // ============================================
+// SCHEDULED ALERT (daily trending)
+// ============================================
+
+const ALERT_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+
+async function sendDailyAlert() {
+  console.log('📢 Running daily trending alert...');
+
+  const subscribers = await getSubscribers();
+  if (subscribers.length === 0) {
+    console.log('No subscribers, skipping alert.');
+    return;
+  }
+
+  const pools = await fetchTrendingPools();
+  if (!pools) {
+    console.log('Failed to fetch trending pools for alert.');
+    return;
+  }
+
+  const msg = '📢 *Daily Trending Alert*\n\n' + buildTrendingMessage(pools);
+
+  let sent = 0;
+  for (const chatId of subscribers) {
+    try {
+      await bot.telegram.sendMessage(chatId, msg, {
+        parse_mode: 'MarkdownV2',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🧮 Open Calculator', web_app: { url: MINI_APP_URL } }],
+            [{ text: '🔕 Unsubscribe', callback_data: 'unsub_confirm' }]
+          ]
+        }
+      });
+      sent++;
+    } catch (e) {
+      console.error(`Failed to send alert to ${chatId}:`, e.message);
+      // Auto-unsubscribe if bot was blocked
+      if (e.response?.error_code === 403) {
+        await unsubscribeChatId(chatId);
+        console.log(`Auto-unsubscribed blocked chat: ${chatId}`);
+      }
+    }
+  }
+
+  console.log(`📢 Alert sent to ${sent}/${subscribers.length} subscribers.`);
+}
+
+bot.action('unsub_confirm', async (ctx) => {
+  await ctx.answerCbQuery();
+  const chatId = ctx.chat.id;
+  const success = await unsubscribeChatId(chatId);
+  if (success) {
+    ctx.reply('✅ Unsubscribed! Kamu tidak akan menerima alert lagi.\n\nGunakan /subscribe untuk subscribe kembali.');
+  }
+});
+
+// ============================================
 // LAUNCH (polling mode)
 // ============================================
 
@@ -365,6 +565,10 @@ bot.telegram.getMe().then((botInfo) => {
   return bot.launch({ dropPendingUpdates: true });
 }).then(() => {
   console.log('🚀 Polling started!');
+
+  // Start daily alert scheduler
+  setInterval(sendDailyAlert, ALERT_INTERVAL);
+  console.log('⏰ Daily alert scheduler started (every 24h)');
 }).catch((err) => {
   console.error('❌ Failed to start bot:', err.message);
   process.exit(1);
