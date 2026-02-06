@@ -1,13 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { Calculator, BarChart3, LineChart, Clock, BookOpen, Sun, Moon } from 'lucide-react';
 import MeteoraCalculator, { POOLS_DATA } from './components/MeteoraCalculator';
-import ComparisonView from './components/ComparisonView';
-import ChartDashboard from './components/charts/ChartDashboard';
-import HistoryView from './components/HistoryView';
-import LearnView from './components/LearnView';
 import useHistory from './hooks/useHistory';
 
+// Lazy load tab components - only loaded when user navigates to them
+const ComparisonView = lazy(() => import('./components/ComparisonView'));
+const ChartDashboard = lazy(() => import('./components/charts/ChartDashboard'));
+const HistoryView = lazy(() => import('./components/HistoryView'));
+const LearnView = lazy(() => import('./components/LearnView'));
+
 const API_URL = 'https://meteora-calculator-api.infocyber001.workers.dev';
+
+function TabFallback() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -70,26 +80,30 @@ function App() {
     fetchPools();
   }, [fetchPools]);
 
-  const handleTabChange = (tabId) => {
+  const handleTabChange = useCallback((tabId) => {
     setActiveTab(tabId);
     window.scrollTo(0, 0);
-  };
+  }, []);
 
-  const comparisonPools = pools.map(pool => ({
+  const comparisonPools = useMemo(() => pools.map(pool => ({
     address: pool.id,
     name: pool.pair,
     liquidity: pool.tvl,
     fee_24h: pool.fees_24h,
     trade_volume_24h: pool.volume_24h,
-  }));
+  })), [pools]);
 
-  const tabs = [
+  const tabs = useMemo(() => [
     { id: 'calculator', label: 'Calc', icon: Calculator },
     { id: 'comparison', label: 'Compare', icon: BarChart3 },
     { id: 'charts', label: 'Charts', icon: LineChart },
     { id: 'history', label: 'History', icon: Clock, badge: history.length || null },
     { id: 'learn', label: 'Learn', icon: BookOpen },
-  ];
+  ], [history.length]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  }, []);
 
   return (
     <div className="min-h-screen dark:bg-slate-900 bg-gray-50">
@@ -120,7 +134,7 @@ function App() {
             );
           })}
           <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            onClick={toggleTheme}
             className="p-2.5 mx-1 rounded-lg dark:text-yellow-400 text-slate-600 dark:hover:bg-slate-700 hover:bg-gray-100 transition-colors"
             title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
           >
@@ -140,40 +154,42 @@ function App() {
         />
       )}
 
-      {activeTab === 'comparison' && (
-        <ErrorBoundary>
-          <ComparisonView
-            pools={comparisonPools}
-            onBack={() => handleTabChange('calculator')}
+      <Suspense fallback={<TabFallback />}>
+        {activeTab === 'comparison' && (
+          <ErrorBoundary>
+            <ComparisonView
+              pools={comparisonPools}
+              onBack={() => handleTabChange('calculator')}
+            />
+          </ErrorBoundary>
+        )}
+
+        {activeTab === 'history' && (
+          <HistoryView
+            history={history}
+            onDelete={deleteEntry}
+            onClear={clearHistory}
           />
-        </ErrorBoundary>
-      )}
+        )}
 
-      {activeTab === 'history' && (
-        <HistoryView
-          history={history}
-          onDelete={deleteEntry}
-          onClear={clearHistory}
-        />
-      )}
+        {activeTab === 'learn' && (
+          <LearnView />
+        )}
 
-      {activeTab === 'learn' && (
-        <LearnView />
-      )}
-
-      {activeTab === 'charts' && (
-        <ErrorBoundary>
-          <div className="p-4">
-            <div className="max-w-4xl mx-auto">
-              <div className="text-center mb-6">
-                <h2 className="text-xl font-bold dark:text-white text-gray-900">Analytics Dashboard</h2>
-                <p className="dark:text-gray-400 text-gray-600 text-sm">Visualisasi IL, Fee & ROI</p>
+        {activeTab === 'charts' && (
+          <ErrorBoundary>
+            <div className="p-4">
+              <div className="max-w-4xl mx-auto">
+                <div className="text-center mb-6">
+                  <h2 className="text-xl font-bold dark:text-white text-gray-900">Analytics Dashboard</h2>
+                  <p className="dark:text-gray-400 text-gray-600 text-sm">Visualisasi IL, Fee & ROI</p>
+                </div>
+                <ChartDashboard />
               </div>
-              <ChartDashboard />
             </div>
-          </div>
-        </ErrorBoundary>
-      )}
+          </ErrorBoundary>
+        )}
+      </Suspense>
     </div>
   );
 }

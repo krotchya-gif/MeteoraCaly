@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Calculator, TrendingUp, TrendingDown, DollarSign, AlertCircle, Info, RefreshCw } from 'lucide-react';
 import { calculateIL, calculateFees, calculateConcentration, calculateROI } from '../utils/calculations';
 
@@ -35,7 +35,7 @@ export const POOLS_DATA = [
 ];
 
 // Pool Card Component
-function PoolCard({ pool, onSelect, isSelected }) {
+const PoolCard = React.memo(function PoolCard({ pool, onSelect, isSelected }) {
   const volumeToTvl = ((pool.volume_24h / pool.tvl) * 100).toFixed(0);
   const dailyYield = ((pool.fees_24h / pool.tvl) * 100).toFixed(2);
   
@@ -81,7 +81,7 @@ function PoolCard({ pool, onSelect, isSelected }) {
       </div>
     </div>
   );
-}
+});
 
 // Calculator Component
 function CalculatorView({ pool, onBack, onSave }) {
@@ -368,16 +368,16 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
 
-  const filteredPools = pools.filter(pool => {
+  const filteredPools = useMemo(() => pools.filter(pool => {
     const matchesSearch = pool.pair.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === 'ALL' || pool.type === filterType;
     return matchesSearch && matchesType;
-  });
+  }), [pools, searchTerm, filterType]);
 
-  const handleSelectPool = (pool) => {
+  const handleSelectPool = useCallback((pool) => {
     setSelectedPool(pool);
     setView('calculator');
-  };
+  }, []);
 
   return (
     <div className="p-4">
