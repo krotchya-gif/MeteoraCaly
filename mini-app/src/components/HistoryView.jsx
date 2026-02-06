@@ -7,10 +7,14 @@ function formatDate(ts) {
     ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 
+function n(v) {
+  return (v ?? 0).toFixed(2);
+}
+
 function HistoryCard({ entry, onDelete }) {
   const [expanded, setExpanded] = useState(false);
-  const r = entry.results;
-  const isProfit = r.netWeekly > 0;
+  const r = entry.results || {};
+  const isProfit = (r.netWeekly ?? 0) > 0;
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-600 overflow-hidden">
@@ -28,7 +32,7 @@ function HistoryCard({ entry, onDelete }) {
           </div>
           <div className="flex items-center gap-2">
             <span className={`text-sm font-bold ${isProfit ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-              {r.weeklyROI > 0 ? '+' : ''}{r.weeklyROI.toFixed(2)}%
+              {(r.weeklyROI ?? 0) > 0 ? '+' : ''}{n(r.weeklyROI)}%
             </span>
             {expanded ? (
               <ChevronUp className="w-4 h-4 text-gray-400" />
@@ -55,31 +59,31 @@ function HistoryCard({ entry, onDelete }) {
             <div>
               <span className="text-gray-500 dark:text-gray-400 text-xs">Daily Fee</span>
               <p className="text-green-600 dark:text-green-400 font-mono font-semibold">
-                ${r.dailyFee.toFixed(2)}
+                ${n(r.dailyFee)}
               </p>
             </div>
             <div>
               <span className="text-gray-500 dark:text-gray-400 text-xs">Weekly Fee</span>
               <p className="text-green-600 dark:text-green-400 font-mono font-semibold">
-                ${r.weeklyFee.toFixed(2)}
+                ${n(r.weeklyFee)}
               </p>
             </div>
             <div>
               <span className="text-gray-500 dark:text-gray-400 text-xs">IL</span>
               <p className="text-yellow-600 dark:text-yellow-400 font-mono">
-                {r.ilPercent.toFixed(2)}%
+                {n(r.ilPercent)}%
               </p>
             </div>
             <div>
               <span className="text-gray-500 dark:text-gray-400 text-xs">Net Weekly</span>
               <p className={`font-mono font-semibold ${isProfit ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                ${r.netWeekly.toFixed(2)}
+                ${n(r.netWeekly)}
               </p>
             </div>
             <div>
               <span className="text-gray-500 dark:text-gray-400 text-xs">Monthly ROI</span>
-              <p className={`font-mono ${r.monthlyROI > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                {r.monthlyROI > 0 ? '+' : ''}{r.monthlyROI.toFixed(2)}%
+              <p className={`font-mono ${(r.monthlyROI ?? 0) > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {(r.monthlyROI ?? 0) > 0 ? '+' : ''}{n(r.monthlyROI)}%
               </p>
             </div>
             {r.breakEvenDays > 0 && (
