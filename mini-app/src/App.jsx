@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Calculator, BarChart3, LineChart, Clock, Sun, Moon } from 'lucide-react';
+import { Calculator, BarChart3, LineChart, Clock, BookOpen, Sun, Moon } from 'lucide-react';
 import MeteoraCalculator, { POOLS_DATA } from './components/MeteoraCalculator';
 import ComparisonView from './components/ComparisonView';
 import ChartDashboard from './components/charts/ChartDashboard';
 import HistoryView from './components/HistoryView';
+import LearnView from './components/LearnView';
 import useHistory from './hooks/useHistory';
 
 const API_URL = 'https://meteora-calculator-api.infocyber001.workers.dev';
@@ -83,10 +84,11 @@ function App() {
   }));
 
   const tabs = [
-    { id: 'calculator', label: 'Calculator', icon: Calculator },
+    { id: 'calculator', label: 'Calc', icon: Calculator },
     { id: 'comparison', label: 'Compare', icon: BarChart3 },
     { id: 'charts', label: 'Charts', icon: LineChart },
     { id: 'history', label: 'History', icon: Clock, badge: history.length || null },
+    { id: 'learn', label: 'Learn', icon: BookOpen },
   ];
 
   return (
@@ -108,7 +110,7 @@ function App() {
                 }`}
               >
                 <Icon className="w-4 h-4" />
-                <span>{tab.label}</span>
+                <span className="hidden sm:inline text-xs">{tab.label}</span>
                 {tab.badge && (
                   <span className="min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-purple-500 text-white rounded-full px-1">
                     {tab.badge > 9 ? '9+' : tab.badge}
@@ -153,6 +155,10 @@ function App() {
           onDelete={deleteEntry}
           onClear={clearHistory}
         />
+      )}
+
+      {activeTab === 'learn' && (
+        <LearnView />
       )}
 
       {activeTab === 'charts' && (
