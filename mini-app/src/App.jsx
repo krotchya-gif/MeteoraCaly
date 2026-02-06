@@ -18,17 +18,15 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 p-4 flex items-center justify-center">
-          <div className="bg-red-900/30 border border-red-500/50 rounded-xl p-6 max-w-md text-center">
-            <p className="text-red-400 font-bold mb-2">Error loading component</p>
-            <p className="text-gray-400 text-sm">{this.state.error?.message || 'Unknown error'}</p>
-            <button
-              onClick={() => this.setState({ hasError: false, error: null })}
-              className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm"
-            >
-              Coba Lagi
-            </button>
-          </div>
+        <div className="p-4 m-4 bg-red-900/30 border border-red-500/50 rounded-xl text-center">
+          <p className="text-red-400 font-bold mb-2">Error loading component</p>
+          <p className="text-gray-400 text-sm">{this.state.error?.message || 'Unknown error'}</p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm"
+          >
+            Coba Lagi
+          </button>
         </div>
       );
     }
@@ -63,7 +61,6 @@ function App() {
     fetchPools();
   }, [fetchPools]);
 
-  // Scroll to top when switching tabs
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     window.scrollTo(0, 0);
@@ -85,44 +82,9 @@ function App() {
   ];
 
   return (
-    <div>
-      {/* Content area with bottom padding for nav bar */}
-      <div className="pb-20">
-        {activeTab === 'calculator' && (
-          <MeteoraCalculator
-            pools={pools}
-            loading={loading}
-            onRefresh={fetchPools}
-            lastUpdated={lastUpdated}
-          />
-        )}
-
-        {activeTab === 'comparison' && (
-          <ErrorBoundary>
-            <ComparisonView
-              pools={comparisonPools}
-              onBack={() => handleTabChange('calculator')}
-            />
-          </ErrorBoundary>
-        )}
-
-        {activeTab === 'charts' && (
-          <ErrorBoundary>
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 p-4">
-              <div className="max-w-4xl mx-auto">
-                <div className="text-center mb-6">
-                  <h2 className="text-xl font-bold text-white">Analytics Dashboard</h2>
-                  <p className="text-gray-400 text-sm">Visualisasi IL, Fee & ROI</p>
-                </div>
-                <ChartDashboard />
-              </div>
-            </div>
-          </ErrorBoundary>
-        )}
-      </div>
-
-      {/* Bottom Tab Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 z-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
+      {/* Top Tab Navigation - sticky */}
+      <nav className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700">
         <div className="max-w-2xl mx-auto flex">
           {tabs.map(tab => {
             const Icon = tab.icon;
@@ -131,19 +93,52 @@ function App() {
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
-                className={`flex-1 flex flex-col items-center py-3 px-2 transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-2 py-3 px-2 text-sm font-medium transition-colors border-b-2 ${
                   isActive
-                    ? 'text-purple-400'
-                    : 'text-gray-500 hover:text-gray-300'
+                    ? 'text-purple-400 border-purple-400'
+                    : 'text-gray-500 border-transparent hover:text-gray-300'
                 }`}
               >
-                <Icon className="w-5 h-5 mb-1" />
-                <span className="text-xs font-medium">{tab.label}</span>
+                <Icon className="w-4 h-4" />
+                <span>{tab.label}</span>
               </button>
             );
           })}
         </div>
       </nav>
+
+      {/* Content */}
+      {activeTab === 'calculator' && (
+        <MeteoraCalculator
+          pools={pools}
+          loading={loading}
+          onRefresh={fetchPools}
+          lastUpdated={lastUpdated}
+        />
+      )}
+
+      {activeTab === 'comparison' && (
+        <ErrorBoundary>
+          <ComparisonView
+            pools={comparisonPools}
+            onBack={() => handleTabChange('calculator')}
+          />
+        </ErrorBoundary>
+      )}
+
+      {activeTab === 'charts' && (
+        <ErrorBoundary>
+          <div className="p-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="text-center mb-6">
+                <h2 className="text-xl font-bold text-white">Analytics Dashboard</h2>
+                <p className="text-gray-400 text-sm">Visualisasi IL, Fee & ROI</p>
+              </div>
+              <ChartDashboard />
+            </div>
+          </div>
+        </ErrorBoundary>
+      )}
     </div>
   );
 }
