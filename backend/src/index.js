@@ -8,9 +8,9 @@ const CONFIG = {
   CACHE_TTL: 300,           // 5 minutes in seconds
   RATE_LIMIT: 100,          // requests per minute per IP
   RATE_LIMIT_WINDOW: 60,    // window in seconds
-  MIN_TVL: 1000,            // minimum TVL to include pool
-  DEFAULT_TOP_N: 50,
-  MAX_TOP_N: 100,
+  MIN_TVL: 500,             // minimum TVL to include pool
+  FETCH_LIMIT: 250,         // max per page from Meteora API
+  MAX_TOP_N: 500,           // max pools to serve via API
   REQUEST_TIMEOUT: 25000,
 };
 
@@ -117,13 +117,12 @@ async function setCache(key, data, env) {
 // METEORA API FETCHING
 // ============================================
 
-async function fetchMeteoraPoolsRaw(limit = 100) {
+async function fetchMeteoraPage(sortKey, limit, page = 0) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
 
   try {
-    // Use pagination endpoint (sorted by volume desc) - avoids 154MB /pair/all response
-    const url = `${CONFIG.METEORA_API}/pair/all_with_pagination?page=0&limit=${limit}&sort_key=volume&order_by=desc`;
+    const url = `${CONFIG.METEORA_API}/pair/all_with_pagination?page=${page}&limit=${limit}&sort_key=${sortKey}&order_by=desc`;
     const response = await fetch(url, {
       signal: controller.signal,
       headers: { 'User-Agent': 'Meteora-Calculator-API/1.0' },
@@ -138,6 +137,26 @@ async function fetchMeteoraPoolsRaw(limit = 100) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function fetchMeteoraPoolsRaw() {
+  // Fetch from multiple sort criteria to catch both high-volume and high-yield pools
+  const [byVolume, byYield] = await Promise.all([
+    fetchMeteoraPage('volume', CONFIG.FETCH_LIMIT),
+    fetchMeteoraPage('feetvlratio', CONFIG.FETCH_LIMIT),
+  ]);
+
+  // Merge and deduplicate by address
+  const seen = new Set();
+  const merged = [];
+  for (const pool of [...byVolume, ...byYield]) {
+    if (pool.address && !seen.has(pool.address)) {
+      seen.add(pool.address);
+      merged.push(pool);
+    }
+  }
+
+  return merged;
 }
 
 function transformPool(pool) {
@@ -194,11 +213,12 @@ async function fetchAllPools(env) {
   const cached = await getCached('all_pools', env);
   if (cached) return cached;
 
-  // Fetch fresh data (top 100 by volume via pagination)
-  const rawPools = await fetchMeteoraPoolsRaw(CONFIG.MAX_TOP_N);
+  // Fetch from Meteora (by volume + by fees, merged & deduplicated)
+  const rawPools = await fetchMeteoraPoolsRaw();
   const pools = rawPools
     .map(transformPool)
-    .filter(p => p.is_active);
+    .filter(p => p.is_active)
+    .sort((a, b) => b.volume_24h - a.volume_24h); // default sort by volume
 
   // Cache the result
   await setCache('all_pools', pools, env);
