@@ -117,12 +117,14 @@ async function setCache(key, data, env) {
 // METEORA API FETCHING
 // ============================================
 
-async function fetchMeteoraPoolsRaw() {
+async function fetchMeteoraPoolsRaw(limit = 100) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
 
   try {
-    const response = await fetch(`${CONFIG.METEORA_API}/pair/all`, {
+    // Use pagination endpoint (sorted by volume desc) - avoids 154MB /pair/all response
+    const url = `${CONFIG.METEORA_API}/pair/all_with_pagination?page=0&limit=${limit}&sort_key=volume&order_by=desc`;
+    const response = await fetch(url, {
       signal: controller.signal,
       headers: { 'User-Agent': 'Meteora-Calculator-API/1.0' },
     });
@@ -132,7 +134,7 @@ async function fetchMeteoraPoolsRaw() {
     }
 
     const raw = await response.json();
-    return Array.isArray(raw) ? raw : (raw.data || raw);
+    return raw.pairs || raw.data || (Array.isArray(raw) ? raw : []);
   } finally {
     clearTimeout(timeout);
   }
@@ -144,6 +146,14 @@ function transformPool(pool) {
   const fees24h = parseFloat(pool.fees_24h || 0);
   const dailyYield = tvl > 0 ? (fees24h / tvl) * 100 : 0;
 
+  // Parse reserve amounts (raw integers from API)
+  const reserveX = parseFloat(pool.reserve_x_amount || 0);
+  const reserveY = parseFloat(pool.reserve_y_amount || 0);
+  const decimalsX = parseInt(pool.decimals_x || 9);
+  const decimalsY = parseInt(pool.decimals_y || 6);
+  const reserveXNorm = reserveX / Math.pow(10, decimalsX);
+  const reserveYNorm = reserveY / Math.pow(10, decimalsY);
+
   return {
     id: pool.address,
     pair: pool.name,
@@ -154,7 +164,7 @@ function transformPool(pool) {
     current_price: parseFloat(pool.current_price || 0),
     bin_step: parseInt(pool.bin_step || 0),
     base_fee: parseFloat(pool.base_fee_percentage || 0),
-    total_trading_fee: parseFloat(pool.total_fee || 0),
+    total_trading_fee: parseFloat(pool.base_fee_percentage || 0),
     apy: parseFloat(pool.apy || 0),
     apr: parseFloat(pool.apr || 0),
     farm_apy: parseFloat(pool.farm_apy || 0),
@@ -162,14 +172,16 @@ function transformPool(pool) {
     token0: {
       symbol: (pool.name || '').split('-')[0] || 'UNKNOWN',
       mint: pool.mint_x,
-      decimals: parseInt(pool.decimals_x || 9),
-      reserve: parseFloat(pool.reserve_x || 0),
+      decimals: decimalsX,
+      reserve: reserveXNorm,
+      price_usd: reserveXNorm > 0 ? (tvl / 2) / reserveXNorm : 0,
     },
     token1: {
       symbol: (pool.name || '').split('-')[1] || 'UNKNOWN',
       mint: pool.mint_y,
-      decimals: parseInt(pool.decimals_y || 9),
-      reserve: parseFloat(pool.reserve_y || 0),
+      decimals: decimalsY,
+      reserve: reserveYNorm,
+      price_usd: reserveYNorm > 0 ? (tvl / 2) / reserveYNorm : 0,
     },
     pool_url: `https://app.meteora.ag/dlmm/${pool.address}`,
     is_active: tvl > CONFIG.MIN_TVL,
@@ -182,12 +194,11 @@ async function fetchAllPools(env) {
   const cached = await getCached('all_pools', env);
   if (cached) return cached;
 
-  // Fetch fresh data
-  const rawPools = await fetchMeteoraPoolsRaw();
+  // Fetch fresh data (top 100 by volume via pagination)
+  const rawPools = await fetchMeteoraPoolsRaw(CONFIG.MAX_TOP_N);
   const pools = rawPools
     .map(transformPool)
-    .filter(p => p.is_active)
-    .sort((a, b) => b.volume_24h - a.volume_24h);
+    .filter(p => p.is_active);
 
   // Cache the result
   await setCache('all_pools', pools, env);
