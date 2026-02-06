@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Calculator, BarChart3, LineChart, RefreshCw } from 'lucide-react';
+import { Calculator, BarChart3, LineChart, Sun, Moon } from 'lucide-react';
 import MeteoraCalculator, { POOLS_DATA } from './components/MeteoraCalculator';
 import ComparisonView from './components/ComparisonView';
 import ChartDashboard from './components/charts/ChartDashboard';
@@ -38,6 +38,12 @@ function App() {
   const [pools, setPools] = useState(POOLS_DATA);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   const fetchPools = useCallback(async () => {
     setLoading(true);
@@ -80,10 +86,10 @@ function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen dark:bg-slate-900 bg-gray-50">
       {/* Top Tab Navigation */}
-      <nav className="sticky top-0 z-50 bg-slate-800 border-b border-slate-600">
-        <div className="max-w-2xl mx-auto flex">
+      <nav className="sticky top-0 z-50 bg-slate-800 dark:bg-slate-800 bg-white border-b border-slate-600 dark:border-slate-600 border-gray-200">
+        <div className="max-w-2xl mx-auto flex items-center">
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -94,7 +100,7 @@ function App() {
                 className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-2 text-sm font-semibold transition-colors border-b-2 ${
                   isActive
                     ? 'text-white bg-purple-700 border-purple-400'
-                    : 'text-gray-300 border-transparent hover:bg-slate-700'
+                    : 'dark:text-gray-300 text-gray-600 border-transparent dark:hover:bg-slate-700 hover:bg-gray-100'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -102,6 +108,13 @@ function App() {
               </button>
             );
           })}
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="p-2.5 mx-1 rounded-lg dark:text-yellow-400 text-slate-600 dark:hover:bg-slate-700 hover:bg-gray-100 transition-colors"
+            title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
         </div>
       </nav>
 
@@ -129,8 +142,8 @@ function App() {
           <div className="p-4">
             <div className="max-w-4xl mx-auto">
               <div className="text-center mb-6">
-                <h2 className="text-xl font-bold text-white">Analytics Dashboard</h2>
-                <p className="text-gray-400 text-sm">Visualisasi IL, Fee & ROI</p>
+                <h2 className="text-xl font-bold dark:text-white text-gray-900">Analytics Dashboard</h2>
+                <p className="dark:text-gray-400 text-gray-600 text-sm">Visualisasi IL, Fee & ROI</p>
               </div>
               <ChartDashboard />
             </div>

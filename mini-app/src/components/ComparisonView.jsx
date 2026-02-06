@@ -134,23 +134,23 @@ const ComparisonView = ({ pools, onBack }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-8 px-4">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <button
                 onClick={onBack}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
               >
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Strategy Comparison</h1>
-                <p className="text-sm text-gray-600 mt-1">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Strategy Comparison</h1>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   Compare multiple pools and strategies side-by-side
                 </p>
               </div>
@@ -181,7 +181,7 @@ const ComparisonView = ({ pools, onBack }) => {
         {!showResults ? (
           <>
             {/* Selection Panel */}
-            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-6 mb-6">
               <ComparisonSelector
                 pools={pools}
                 selectedPools={selectedPools}
@@ -192,14 +192,14 @@ const ComparisonView = ({ pools, onBack }) => {
             </div>
 
             {/* Parameters Panel */}
-            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-6 mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Comparison Parameters
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Capital Amount ($)
                   </label>
                   <input
@@ -208,15 +208,15 @@ const ComparisonView = ({ pools, onBack }) => {
                     onChange={(e) => setCapital(Number(e.target.value))}
                     min="100"
                     step="100"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Amount to invest in each strategy
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Expected Price Change (%)
                   </label>
                   <input
@@ -226,9 +226,9 @@ const ComparisonView = ({ pools, onBack }) => {
                     min="-50"
                     max="100"
                     step="5"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Affects impermanent loss calculation
                   </p>
                 </div>
@@ -242,7 +242,7 @@ const ComparisonView = ({ pools, onBack }) => {
                 disabled={selectedPools.length === 0 || selectedStrategies.length === 0 || isCalculating}
                 className={`px-8 py-3 rounded-lg font-medium text-white transition-all ${
                   selectedPools.length === 0 || selectedStrategies.length === 0
-                    ? 'bg-gray-400 cursor-not-allowed'
+                    ? 'bg-gray-400 dark:bg-slate-600 cursor-not-allowed'
                     : isCalculating
                     ? 'bg-blue-400 cursor-wait'
                     : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg'
@@ -264,21 +264,21 @@ const ComparisonView = ({ pools, onBack }) => {
           </>
         ) : (
           /* Results Panel */
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-6">
             <ComparisonTable comparisons={comparisons} />
           </div>
         )}
 
         {/* Info Footer */}
         {!showResults && (
-          <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="mt-8 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
             <div className="flex items-start">
               <svg className="w-5 h-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
-              <div className="text-sm text-blue-900">
+              <div className="text-sm text-blue-900 dark:text-blue-200">
                 <p className="font-medium mb-1">How to use Comparison View:</p>
-                <ul className="list-disc list-inside space-y-1 text-blue-800">
+                <ul className="list-disc list-inside space-y-1 text-blue-800 dark:text-blue-300">
                   <li>Select up to 3 pools to compare</li>
                   <li>Choose one or more strategies (Spot, Curve, Bid-Ask)</li>
                   <li>Set your capital and expected price movement</li>

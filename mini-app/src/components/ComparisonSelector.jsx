@@ -37,10 +37,10 @@ const ComparisonSelector = ({
       {/* Pool Selection */}
       <div>
         <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             Select Pools to Compare
           </h3>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
             {selectedPools.length}/{maxSelections} selected
           </span>
         </div>
@@ -57,18 +57,18 @@ const ComparisonSelector = ({
                 disabled={isDisabled}
                 className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
                   isSelected
-                    ? 'border-blue-500 bg-blue-50'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
                     : isDisabled
-                    ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
-                    : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                    ? 'border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 opacity-50 cursor-not-allowed'
+                    : 'border-gray-200 dark:border-slate-600 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-gray-50 dark:hover:bg-slate-700 dark:bg-slate-700'
                 }`}
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <div className="font-medium text-gray-900">
+                    <div className="font-medium text-gray-900 dark:text-white">
                       {pool.name}
                     </div>
-                    <div className="text-sm text-gray-600 mt-1">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                       TVL: ${(pool.liquidity / 1e6).toFixed(2)}M | 
                       Volume: ${(pool.trade_volume_24h / 1e6).toFixed(2)}M
                     </div>
@@ -87,7 +87,7 @@ const ComparisonSelector = ({
 
       {/* Strategy Selection */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
           Select Strategies to Compare
         </h3>
 
@@ -101,13 +101,13 @@ const ComparisonSelector = ({
                 onClick={() => handleStrategyToggle(strategy.id)}
                 className={`p-4 rounded-lg border-2 transition-all ${
                   isSelected
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:border-green-300 hover:bg-gray-50'
+                    ? 'border-green-500 bg-green-50 dark:bg-green-950'
+                    : 'border-gray-200 dark:border-slate-600 hover:border-green-300 dark:hover:border-green-600 hover:bg-gray-50 dark:hover:bg-slate-700 dark:bg-slate-700'
                 }`}
               >
                 <div className="text-left">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-gray-900">
+                    <span className="font-medium text-gray-900 dark:text-white">
                       {strategy.name}
                     </span>
                     {isSelected && (
@@ -116,7 +116,7 @@ const ComparisonSelector = ({
                       </svg>
                     )}
                   </div>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
                     {strategy.description}
                   </p>
                 </div>
@@ -128,16 +128,16 @@ const ComparisonSelector = ({
 
       {/* Selection Summary */}
       {selectedPools.length > 0 && selectedStrategies.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <div className="flex items-start">
             <svg className="w-5 h-5 text-blue-500 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
             </svg>
             <div className="flex-1">
-              <p className="text-sm font-medium text-blue-900">
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
                 Ready to Compare
               </p>
-              <p className="text-xs text-blue-700 mt-1">
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
                 Comparing {selectedPools.length} pool(s) with {selectedStrategies.length} strategy(ies) = 
                 {' '}{selectedPools.length * selectedStrategies.length} total combinations
               </p>
