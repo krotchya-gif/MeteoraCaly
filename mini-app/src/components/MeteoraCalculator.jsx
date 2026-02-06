@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calculator, TrendingUp, TrendingDown, DollarSign, AlertCircle, Info, RefreshCw } from 'lucide-react';
+import { calculateIL, calculateFees, calculateConcentration, calculateROI } from '../utils/calculations';
 
 // Sample pool data (in real app, this would be pools.json)
 export const POOLS_DATA = [
@@ -32,34 +33,6 @@ export const POOLS_DATA = [
     token1: { symbol: 'USDC', price_usd: 1.0 }
   }
 ];
-
-// Calculation utilities
-const calculations = {
-  calculateIL: (priceChange) => {
-    return (2 * Math.sqrt(priceChange) / (1 + priceChange) - 1) * 100;
-  },
-  
-  calculateFees: (tvl, dailyVolume, feeRate, userLiquidity, concentration = 1.5) => {
-    const poolFee = dailyVolume * (feeRate / 100);
-    const userShare = (userLiquidity / tvl) * concentration;
-    return poolFee * userShare;
-  },
-  
-  calculateConcentration: (strategy) => {
-    const factors = {
-      'spot': 3.0,
-      'curve': 2.0,
-      'bid-ask': 1.0,
-      'full': 0.5
-    };
-    return factors[strategy] || 1.5;
-  },
-  
-  calculateROI: (capital, feeEarned, ilLoss) => {
-    const netProfit = feeEarned - Math.abs(ilLoss);
-    return (netProfit / capital) * 100;
-  }
-};
 
 // Pool Card Component
 function PoolCard({ pool, onSelect, isSelected }) {
@@ -136,11 +109,11 @@ function CalculatorView({ pool, onBack, onSave }) {
 
   const calculateResults = () => {
     const scenario = scenarios[priceScenario];
-    const concentration = calculations.calculateConcentration(strategy);
+    const concentration = calculateConcentration(strategy);
 
     // Fee calculation
     const adjustedVolume = pool.volume_24h * scenario.volumeMultiplier;
-    const dailyFee = calculations.calculateFees(
+    const dailyFee = calculateFees(
       pool.tvl,
       adjustedVolume,
       pool.total_trading_fee,
@@ -150,12 +123,12 @@ function CalculatorView({ pool, onBack, onSave }) {
     const weeklyFee = dailyFee * 7;
 
     // IL calculation
-    const ilPercent = calculations.calculateIL(scenario.priceChange);
+    const ilPercent = calculateIL(scenario.priceChange);
     const ilLoss = capital * (Math.abs(ilPercent) / 100);
 
     // ROI calculation
-    const weeklyROI = calculations.calculateROI(capital, weeklyFee, ilLoss);
-    const monthlyROI = calculations.calculateROI(capital, weeklyFee * 4.33, ilLoss * 4.33);
+    const weeklyROI = calculateROI(capital, weeklyFee, ilLoss);
+    const monthlyROI = calculateROI(capital, weeklyFee * 4.33, ilLoss * 4.33);
 
     // Break-even
     const breakEvenDays = ilLoss > 0 ? (ilLoss / dailyFee).toFixed(1) : 0;
