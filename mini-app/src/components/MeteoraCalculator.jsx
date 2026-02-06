@@ -117,26 +117,26 @@ function CalculatorView({ pool, onBack }) {
   const [strategy, setStrategy] = useState('curve');
   const [results, setResults] = useState(null);
   const [priceScenario, setPriceScenario] = useState('sideways');
-  
-  const strategies = poolType === 'DLMM' 
+
+  const strategies = poolType === 'DLMM'
     ? ['spot', 'curve', 'bid-ask']
     : ['full'];
-  
+
   const scenarios = {
     'sideways': { label: 'Sideways (±5%)', priceChange: 1.0, volumeMultiplier: 1.0 },
     'pump': { label: 'Pump (+30%)', priceChange: 1.3, volumeMultiplier: 1.3 },
     'dump': { label: 'Dump (-30%)', priceChange: 0.7, volumeMultiplier: 1.2 },
     'volatile': { label: 'Volatile (±15%)', priceChange: 1.0, volumeMultiplier: 1.5 }
   };
-  
+
   useEffect(() => {
     calculateResults();
   }, [capital, poolType, strategy, priceScenario]);
-  
+
   const calculateResults = () => {
     const scenario = scenarios[priceScenario];
     const concentration = calculations.calculateConcentration(strategy);
-    
+
     // Fee calculation
     const adjustedVolume = pool.volume_24h * scenario.volumeMultiplier;
     const dailyFee = calculations.calculateFees(
@@ -147,22 +147,24 @@ function CalculatorView({ pool, onBack }) {
       concentration
     );
     const weeklyFee = dailyFee * 7;
-    
+
     // IL calculation
     const ilPercent = calculations.calculateIL(scenario.priceChange);
     const ilLoss = capital * (Math.abs(ilPercent) / 100);
-    
+
     // ROI calculation
     const weeklyROI = calculations.calculateROI(capital, weeklyFee, ilLoss);
     const monthlyROI = calculations.calculateROI(capital, weeklyFee * 4.33, ilLoss * 4.33);
-    
+
     // Break-even
     const breakEvenDays = ilLoss > 0 ? (ilLoss / dailyFee).toFixed(1) : 0;
-    
-    // Split calculation
-    const token0Amount = capital / 2 / pool.token0.price_usd;
-    const token1Amount = capital / 2 / pool.token1.price_usd;
-    
+
+    // Split calculation (safely handle missing price_usd)
+    const t0Price = pool.token0?.price_usd || 0;
+    const t1Price = pool.token1?.price_usd || 0;
+    const token0Amount = t0Price > 0 ? capital / 2 / t0Price : 0;
+    const token1Amount = t1Price > 0 ? capital / 2 / t1Price : 0;
+
     setResults({
       dailyFee,
       weeklyFee,
@@ -360,23 +362,23 @@ function CalculatorView({ pool, onBack }) {
 }
 
 // Main App
-export default function MeteoraCalculator() {
+export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false, onRefresh, lastUpdated }) {
   const [view, setView] = useState('pools'); // 'pools' or 'calculator'
   const [selectedPool, setSelectedPool] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
-  
-  const filteredPools = POOLS_DATA.filter(pool => {
+
+  const filteredPools = pools.filter(pool => {
     const matchesSearch = pool.pair.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === 'ALL' || pool.type === filterType;
     return matchesSearch && matchesType;
   });
-  
+
   const handleSelectPool = (pool) => {
     setSelectedPool(pool);
     setView('calculator');
   };
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 p-4">
       <div className="max-w-2xl mx-auto">
@@ -387,8 +389,18 @@ export default function MeteoraCalculator() {
             <h1 className="text-2xl font-bold text-white">Meteora Calculator</h1>
           </div>
           <p className="text-gray-400 text-sm">DLMM & DAMM Position Analysis</p>
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={loading}
+              className="mt-2 inline-flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Memuat...' : 'Refresh Data'}
+            </button>
+          )}
         </div>
-        
+
         {/* Content */}
         {view === 'pools' ? (
           <div className="space-y-4">
@@ -401,7 +413,7 @@ export default function MeteoraCalculator() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full p-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-purple-500 outline-none"
               />
-              
+
               <div className="flex gap-2">
                 {['ALL', 'DLMM', 'DAMM'].map(type => (
                   <button
@@ -418,7 +430,22 @@ export default function MeteoraCalculator() {
                 ))}
               </div>
             </div>
-            
+
+            {/* Loading State */}
+            {loading && pools.length <= 2 && (
+              <div className="text-center py-8">
+                <RefreshCw className="w-8 h-8 text-purple-400 animate-spin mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">Memuat data pool dari Meteora API...</p>
+              </div>
+            )}
+
+            {/* Pool Count */}
+            {!loading && (
+              <div className="text-xs text-gray-500 px-1">
+                {filteredPools.length} pool ditemukan
+              </div>
+            )}
+
             {/* Pool List */}
             <div className="space-y-3">
               {filteredPools.map(pool => (
@@ -430,8 +457,8 @@ export default function MeteoraCalculator() {
                 />
               ))}
             </div>
-            
-            {filteredPools.length === 0 && (
+
+            {!loading && filteredPools.length === 0 && (
               <div className="text-center py-12 text-gray-400">
                 No pools found
               </div>
@@ -443,10 +470,15 @@ export default function MeteoraCalculator() {
             onBack={() => setView('pools')}
           />
         )}
-        
+
         {/* Footer */}
         <div className="mt-8 text-center text-xs text-gray-500">
-          <p>Data updated: Feb 06, 2026</p>
+          <p>
+            {lastUpdated
+              ? `Live data • Updated ${lastUpdated.toLocaleTimeString()}`
+              : 'Static data • Fallback mode'
+            }
+          </p>
           <p className="mt-1">Not financial advice • DYOR</p>
         </div>
       </div>

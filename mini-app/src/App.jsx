@@ -1,16 +1,57 @@
-import { useState } from 'react';
-import { Calculator, BarChart3, LineChart } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Calculator, BarChart3, LineChart, RefreshCw } from 'lucide-react';
 import MeteoraCalculator, { POOLS_DATA } from './components/MeteoraCalculator';
 import ComparisonView from './components/ComparisonView';
 import ChartDashboard from './components/charts/ChartDashboard';
 
+const API_URL = 'https://meteora-calculator-api.infocyber001.workers.dev';
+
 function App() {
   const [activeTab, setActiveTab] = useState('calculator');
+  const [pools, setPools] = useState(POOLS_DATA);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  const fetchPools = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/pools/top/50`);
+      const data = await res.json();
+
+      if (data.success && data.data?.pools?.length > 0) {
+        // Estimate price_usd from reserve data (API doesn't include it)
+        const enriched = data.data.pools.map(pool => ({
+          ...pool,
+          token0: {
+            ...pool.token0,
+            price_usd: pool.token0.reserve > 0
+              ? (pool.tvl / 2) / pool.token0.reserve
+              : 0,
+          },
+          token1: {
+            ...pool.token1,
+            price_usd: pool.token1.reserve > 0
+              ? (pool.tvl / 2) / pool.token1.reserve
+              : 0,
+          },
+        }));
+        setPools(enriched);
+        setLastUpdated(new Date());
+      }
+    } catch (e) {
+      console.error('Failed to fetch pools:', e);
+      // Keep using fallback POOLS_DATA
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPools();
+  }, [fetchPools]);
 
   // Transform pool data format for ComparisonView
-  // MeteoraCalculator uses: id, pair, tvl, fees_24h, volume_24h
-  // ComparisonView expects: address, name, liquidity, fee_24h, trade_volume_24h
-  const comparisonPools = POOLS_DATA.map(pool => ({
+  const comparisonPools = pools.map(pool => ({
     address: pool.id,
     name: pool.pair,
     liquidity: pool.tvl,
@@ -29,7 +70,12 @@ function App() {
       {/* Content area with bottom padding for nav bar */}
       <div className="pb-20">
         {activeTab === 'calculator' && (
-          <MeteoraCalculator />
+          <MeteoraCalculator
+            pools={pools}
+            loading={loading}
+            onRefresh={fetchPools}
+            lastUpdated={lastUpdated}
+          />
         )}
 
         {activeTab === 'comparison' && (
