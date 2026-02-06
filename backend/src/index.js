@@ -1,0 +1,403 @@
+// ============================================
+// METEORA CALCULATOR API - Cloudflare Worker
+// ============================================
+
+const CONFIG = {
+  METEORA_API: 'https://dlmm-api.meteora.ag',
+  JUPITER_PRICE_API: 'https://api.jup.ag/price/v2',
+  CACHE_TTL: 300,           // 5 minutes in seconds
+  RATE_LIMIT: 100,          // requests per minute per IP
+  RATE_LIMIT_WINDOW: 60,    // window in seconds
+  MIN_TVL: 1000,            // minimum TVL to include pool
+  DEFAULT_TOP_N: 50,
+  MAX_TOP_N: 100,
+  REQUEST_TIMEOUT: 25000,
+};
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Max-Age': '86400',
+};
+
+// ============================================
+// UTILITIES
+// ============================================
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      ...CORS_HEADERS,
+    },
+  });
+}
+
+function errorResponse(message, status = 500, code = 'INTERNAL_ERROR') {
+  return jsonResponse({
+    success: false,
+    error: message,
+    code,
+    timestamp: new Date().toISOString(),
+  }, status);
+}
+
+function getClientIP(request) {
+  return request.headers.get('CF-Connecting-IP') ||
+         request.headers.get('X-Forwarded-For') ||
+         '0.0.0.0';
+}
+
+// ============================================
+// RATE LIMITING (using KV)
+// ============================================
+
+async function checkRateLimit(ip, env) {
+  if (!env.POOL_CACHE) return true;
+
+  const key = `rate:${ip}`;
+  const current = await env.POOL_CACHE.get(key, 'json');
+
+  if (!current) {
+    await env.POOL_CACHE.put(key, JSON.stringify({ count: 1 }), {
+      expirationTtl: CONFIG.RATE_LIMIT_WINDOW,
+    });
+    return true;
+  }
+
+  if (current.count >= CONFIG.RATE_LIMIT) {
+    return false;
+  }
+
+  await env.POOL_CACHE.put(key, JSON.stringify({ count: current.count + 1 }), {
+    expirationTtl: CONFIG.RATE_LIMIT_WINDOW,
+  });
+  return true;
+}
+
+// ============================================
+// CACHE LAYER
+// ============================================
+
+async function getCached(key, env) {
+  if (!env.POOL_CACHE) return null;
+
+  try {
+    const cached = await env.POOL_CACHE.get(key, 'json');
+    if (cached && cached.timestamp) {
+      const age = (Date.now() - cached.timestamp) / 1000;
+      if (age < CONFIG.CACHE_TTL) {
+        return cached.data;
+      }
+    }
+  } catch (e) {
+    console.error('Cache read error:', e.message);
+  }
+  return null;
+}
+
+async function setCache(key, data, env) {
+  if (!env.POOL_CACHE) return;
+
+  try {
+    await env.POOL_CACHE.put(key, JSON.stringify({
+      data,
+      timestamp: Date.now(),
+    }), {
+      expirationTtl: CONFIG.CACHE_TTL * 2,
+    });
+  } catch (e) {
+    console.error('Cache write error:', e.message);
+  }
+}
+
+// ============================================
+// METEORA API FETCHING
+// ============================================
+
+async function fetchMeteoraPoolsRaw() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
+
+  try {
+    const response = await fetch(`${CONFIG.METEORA_API}/pair/all`, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Meteora-Calculator-API/1.0' },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Meteora API returned ${response.status}`);
+    }
+
+    const raw = await response.json();
+    return Array.isArray(raw) ? raw : (raw.data || raw);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function transformPool(pool) {
+  const tvl = parseFloat(pool.liquidity || 0);
+  const volume24h = parseFloat(pool.trade_volume_24h || 0);
+  const fees24h = parseFloat(pool.fees_24h || 0);
+  const dailyYield = tvl > 0 ? (fees24h / tvl) * 100 : 0;
+
+  return {
+    id: pool.address,
+    pair: pool.name,
+    type: 'DLMM',
+    tvl: parseFloat(tvl.toFixed(2)),
+    volume_24h: parseFloat(volume24h.toFixed(2)),
+    fees_24h: parseFloat(fees24h.toFixed(2)),
+    current_price: parseFloat(pool.current_price || 0),
+    bin_step: parseInt(pool.bin_step || 0),
+    base_fee: parseFloat(pool.base_fee_percentage || 0),
+    total_trading_fee: parseFloat(pool.total_fee || 0),
+    apy: parseFloat(pool.apy || 0),
+    apr: parseFloat(pool.apr || 0),
+    farm_apy: parseFloat(pool.farm_apy || 0),
+    daily_yield: parseFloat(dailyYield.toFixed(4)),
+    token0: {
+      symbol: (pool.name || '').split('-')[0] || 'UNKNOWN',
+      mint: pool.mint_x,
+      decimals: parseInt(pool.decimals_x || 9),
+      reserve: parseFloat(pool.reserve_x || 0),
+    },
+    token1: {
+      symbol: (pool.name || '').split('-')[1] || 'UNKNOWN',
+      mint: pool.mint_y,
+      decimals: parseInt(pool.decimals_y || 9),
+      reserve: parseFloat(pool.reserve_y || 0),
+    },
+    pool_url: `https://app.meteora.ag/dlmm/${pool.address}`,
+    is_active: tvl > CONFIG.MIN_TVL,
+    last_updated: new Date().toISOString(),
+  };
+}
+
+async function fetchAllPools(env) {
+  // Check cache first
+  const cached = await getCached('all_pools', env);
+  if (cached) return cached;
+
+  // Fetch fresh data
+  const rawPools = await fetchMeteoraPoolsRaw();
+  const pools = rawPools
+    .map(transformPool)
+    .filter(p => p.is_active)
+    .sort((a, b) => b.volume_24h - a.volume_24h);
+
+  // Cache the result
+  await setCache('all_pools', pools, env);
+
+  return pools;
+}
+
+// ============================================
+// ROUTE HANDLERS
+// ============================================
+
+async function handleGetPools(env) {
+  const pools = await fetchAllPools(env);
+
+  return jsonResponse({
+    success: true,
+    data: {
+      pools,
+      count: pools.length,
+      last_updated: pools[0]?.last_updated || new Date().toISOString(),
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleGetPool(poolId, env) {
+  if (!poolId || poolId.length < 20) {
+    return errorResponse('Invalid pool address', 400, 'INVALID_ADDRESS');
+  }
+
+  const pools = await fetchAllPools(env);
+  const pool = pools.find(p => p.id === poolId);
+
+  if (!pool) {
+    return errorResponse('Pool not found', 404, 'POOL_NOT_FOUND');
+  }
+
+  return jsonResponse({
+    success: true,
+    data: { pool },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleGetTopPools(n, env) {
+  const count = Math.min(Math.max(parseInt(n) || 10, 1), CONFIG.MAX_TOP_N);
+  const pools = await fetchAllPools(env);
+  const topPools = pools.slice(0, count);
+
+  return jsonResponse({
+    success: true,
+    data: {
+      pools: topPools,
+      count: topPools.length,
+      sorted_by: 'trade_volume_24h',
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleSearchPools(query, env) {
+  if (!query || query.length < 2) {
+    return errorResponse('Query must be at least 2 characters', 400, 'INVALID_QUERY');
+  }
+
+  const pools = await fetchAllPools(env);
+  const q = query.toUpperCase();
+  const results = pools.filter(p =>
+    p.pair.toUpperCase().includes(q) ||
+    p.token0.symbol.toUpperCase().includes(q) ||
+    p.token1.symbol.toUpperCase().includes(q)
+  );
+
+  return jsonResponse({
+    success: true,
+    data: {
+      pools: results,
+      count: results.length,
+      query,
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleHealth(env) {
+  let cacheStatus = 'no_kv';
+  if (env.POOL_CACHE) {
+    try {
+      await env.POOL_CACHE.get('health_check');
+      cacheStatus = 'operational';
+    } catch {
+      cacheStatus = 'error';
+    }
+  }
+
+  return jsonResponse({
+    success: true,
+    status: 'healthy',
+    version: '1.0.0',
+    cache: {
+      status: cacheStatus,
+      ttl: CONFIG.CACHE_TTL,
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+// ============================================
+// ROUTER
+// ============================================
+
+function matchRoute(pathname) {
+  // GET /api/health
+  if (pathname === '/api/health') {
+    return { handler: 'health' };
+  }
+  // GET /api/pools
+  if (pathname === '/api/pools') {
+    return { handler: 'pools' };
+  }
+  // GET /api/pools/top/:n
+  const topMatch = pathname.match(/^\/api\/pools\/top\/(\d+)$/);
+  if (topMatch) {
+    return { handler: 'top', params: { n: topMatch[1] } };
+  }
+  // GET /api/pools/search
+  if (pathname === '/api/pools/search') {
+    return { handler: 'search' };
+  }
+  // GET /api/pool/:id
+  const poolMatch = pathname.match(/^\/api\/pool\/(.+)$/);
+  if (poolMatch) {
+    return { handler: 'pool', params: { id: poolMatch[1] } };
+  }
+  return null;
+}
+
+// ============================================
+// MAIN HANDLER
+// ============================================
+
+export default {
+  async fetch(request, env) {
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
+    // Only allow GET
+    if (request.method !== 'GET') {
+      return errorResponse('Method not allowed', 405, 'METHOD_NOT_ALLOWED');
+    }
+
+    // Rate limiting
+    const ip = getClientIP(request);
+    const allowed = await checkRateLimit(ip, env);
+    if (!allowed) {
+      return errorResponse('Rate limit exceeded', 429, 'RATE_LIMIT_EXCEEDED');
+    }
+
+    const url = new URL(request.url);
+    const route = matchRoute(url.pathname);
+
+    if (!route) {
+      // Root path - show API info
+      if (url.pathname === '/' || url.pathname === '') {
+        return jsonResponse({
+          name: 'Meteora Calculator API',
+          version: '1.0.0',
+          endpoints: [
+            'GET /api/pools',
+            'GET /api/pool/:address',
+            'GET /api/pools/top/:n',
+            'GET /api/pools/search?q=query',
+            'GET /api/health',
+          ],
+        });
+      }
+      return errorResponse('Not found', 404, 'NOT_FOUND');
+    }
+
+    try {
+      switch (route.handler) {
+        case 'health':
+          return await handleHealth(env);
+        case 'pools':
+          return await handleGetPools(env);
+        case 'pool':
+          return await handleGetPool(route.params.id, env);
+        case 'top':
+          return await handleGetTopPools(route.params.n, env);
+        case 'search': {
+          const query = url.searchParams.get('q');
+          return await handleSearchPools(query, env);
+        }
+        default:
+          return errorResponse('Not found', 404, 'NOT_FOUND');
+      }
+    } catch (error) {
+      console.error('Handler error:', error.message, error.stack);
+
+      if (error.name === 'AbortError') {
+        return errorResponse('Upstream API timeout', 503, 'UPSTREAM_TIMEOUT');
+      }
+
+      return errorResponse(
+        'Failed to fetch data from Meteora API',
+        503,
+        'UPSTREAM_ERROR'
+      );
+    }
+  },
+};

@@ -1,0 +1,13 @@
+{
+  "name": "meteora-calculator-api",
+  "version": "1.0.0",
+  "description": "Meteora DLMM/DAMM Calculator API - Cloudflare Workers",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "keywords": ["meteora", "dlmm", "solana", "defi"],
+  "license": "MIT"
+}

@@ -1,0 +1,8 @@
+name = "meteora-calculator-api"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "POOL_CACHE"
+id = "1c4300aec012448b8c0879c3e1ea633b"

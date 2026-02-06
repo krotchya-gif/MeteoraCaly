@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calculator, TrendingUp, TrendingDown, DollarSign, AlertCircle, Info, RefreshCw } from 'lucide-react';
 
 // Sample pool data (in real app, this would be pools.json)
-const POOLS_DATA = [
+export const POOLS_DATA = [
   {
     id: 'bfs-sol-dlmm',
     pair: 'BFS/SOL',
