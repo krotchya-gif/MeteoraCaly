@@ -1,10 +1,40 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Calculator, BarChart3, LineChart, RefreshCw } from 'lucide-react';
 import MeteoraCalculator, { POOLS_DATA } from './components/MeteoraCalculator';
 import ComparisonView from './components/ComparisonView';
 import ChartDashboard from './components/charts/ChartDashboard';
 
 const API_URL = 'https://meteora-calculator-api.infocyber001.workers.dev';
+
+// Error Boundary to catch rendering crashes
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 p-4 flex items-center justify-center">
+          <div className="bg-red-900/30 border border-red-500/50 rounded-xl p-6 max-w-md text-center">
+            <p className="text-red-400 font-bold mb-2">Error loading component</p>
+            <p className="text-gray-400 text-sm">{this.state.error?.message || 'Unknown error'}</p>
+            <button
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm"
+            >
+              Coba Lagi
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function App() {
   const [activeTab, setActiveTab] = useState('calculator');
@@ -19,28 +49,11 @@ function App() {
       const data = await res.json();
 
       if (data.success && data.data?.pools?.length > 0) {
-        // Estimate price_usd from reserve data (API doesn't include it)
-        const enriched = data.data.pools.map(pool => ({
-          ...pool,
-          token0: {
-            ...pool.token0,
-            price_usd: pool.token0.reserve > 0
-              ? (pool.tvl / 2) / pool.token0.reserve
-              : 0,
-          },
-          token1: {
-            ...pool.token1,
-            price_usd: pool.token1.reserve > 0
-              ? (pool.tvl / 2) / pool.token1.reserve
-              : 0,
-          },
-        }));
-        setPools(enriched);
+        setPools(data.data.pools);
         setLastUpdated(new Date());
       }
     } catch (e) {
       console.error('Failed to fetch pools:', e);
-      // Keep using fallback POOLS_DATA
     } finally {
       setLoading(false);
     }
@@ -49,6 +62,12 @@ function App() {
   useEffect(() => {
     fetchPools();
   }, [fetchPools]);
+
+  // Scroll to top when switching tabs
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    window.scrollTo(0, 0);
+  };
 
   // Transform pool data format for ComparisonView
   const comparisonPools = pools.map(pool => ({
@@ -79,22 +98,26 @@ function App() {
         )}
 
         {activeTab === 'comparison' && (
-          <ComparisonView
-            pools={comparisonPools}
-            onBack={() => setActiveTab('calculator')}
-          />
+          <ErrorBoundary>
+            <ComparisonView
+              pools={comparisonPools}
+              onBack={() => handleTabChange('calculator')}
+            />
+          </ErrorBoundary>
         )}
 
         {activeTab === 'charts' && (
-          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 p-4">
-            <div className="max-w-4xl mx-auto">
-              <div className="text-center mb-6">
-                <h2 className="text-xl font-bold text-white">Analytics Dashboard</h2>
-                <p className="text-gray-400 text-sm">Visualisasi IL, Fee & ROI</p>
+          <ErrorBoundary>
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 p-4">
+              <div className="max-w-4xl mx-auto">
+                <div className="text-center mb-6">
+                  <h2 className="text-xl font-bold text-white">Analytics Dashboard</h2>
+                  <p className="text-gray-400 text-sm">Visualisasi IL, Fee & ROI</p>
+                </div>
+                <ChartDashboard />
               </div>
-              <ChartDashboard />
             </div>
-          </div>
+          </ErrorBoundary>
         )}
       </div>
 
@@ -107,7 +130,7 @@ function App() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={`flex-1 flex flex-col items-center py-3 px-2 transition-colors ${
                   isActive
                     ? 'text-purple-400'
