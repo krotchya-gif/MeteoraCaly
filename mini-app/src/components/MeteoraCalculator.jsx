@@ -357,7 +357,7 @@ function CalculatorView({ pool, onBack, onSave }) {
 }
 
 // Main App
-export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false, onRefresh, lastUpdated, onSave }) {
+export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false, loadingMore = false, hasMore = false, onRefresh, onLoadMore, lastUpdated, onSave }) {
   const [view, setView] = useState('pools');
   const [selectedPool, setSelectedPool] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -452,6 +452,24 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
                 />
               ))}
             </div>
+
+            {/* Load More */}
+            {!loading && hasMore && !searchTerm && filterType === 'ALL' && (
+              <button
+                onClick={onLoadMore}
+                disabled={loadingMore}
+                className="w-full py-3 rounded-xl font-semibold text-sm transition-all border-2 dark:border-slate-600 border-gray-300 dark:text-gray-300 text-gray-600 dark:hover:border-purple-500 hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400 disabled:opacity-50"
+              >
+                {loadingMore ? (
+                  <span className="inline-flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Memuat...
+                  </span>
+                ) : (
+                  `Muat 25 pool lagi (${pools.length} ditampilkan)`
+                )}
+              </button>
+            )}
 
             {!loading && filteredPools.length === 0 && (
               <div className="text-center py-12 dark:text-gray-400 text-gray-500">

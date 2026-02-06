@@ -50,6 +50,9 @@ function App() {
   const [activeTab, setActiveTab] = useState('calculator');
   const [pools, setPools] = useState(POOLS_DATA);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [poolLimit, setPoolLimit] = useState(25);
+  const [hasMore, setHasMore] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const { history, saveCalculation, deleteEntry, clearHistory } = useHistory();
@@ -59,25 +62,37 @@ function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const fetchPools = useCallback(async () => {
-    setLoading(true);
+  const fetchPools = useCallback(async (limit = 25, append = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
     try {
-      const res = await fetch(`${API_URL}/api/pools/top/50`);
+      const res = await fetch(`${API_URL}/api/pools/top/${limit}`);
       const data = await res.json();
 
       if (data.success && data.data?.pools?.length > 0) {
         setPools(data.data.pools);
         setLastUpdated(new Date());
+        setPoolLimit(limit);
+        setHasMore(limit < 100 && data.data.pools.length >= limit);
       }
     } catch (e) {
       console.error('Failed to fetch pools:', e);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
+  const loadMore = useCallback(() => {
+    const nextLimit = Math.min(poolLimit + 25, 100);
+    fetchPools(nextLimit, true);
+  }, [poolLimit, fetchPools]);
+
   useEffect(() => {
-    fetchPools();
+    fetchPools(25);
   }, [fetchPools]);
 
   const handleTabChange = useCallback((tabId) => {
@@ -148,7 +163,10 @@ function App() {
         <MeteoraCalculator
           pools={pools}
           loading={loading}
-          onRefresh={fetchPools}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
+          onRefresh={() => fetchPools(poolLimit)}
+          onLoadMore={loadMore}
           lastUpdated={lastUpdated}
           onSave={saveCalculation}
         />
