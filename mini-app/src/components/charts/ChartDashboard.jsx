@@ -1,12 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import ILChart from './ILChart';
 import FeeProjectionChart from './FeeProjectionChart';
 import ROIComparisonChart from './ROIComparisonChart';
 import PriceRangeChart from './PriceRangeChart';
+import { calculateIL, calculateConcentration, calculateROI } from '../../utils/calculations';
+
+function generateROIComparisons(capital, apr) {
+  const strategies = ['Spot', 'Curve', 'Bid-Ask'];
+  const scenarios = [
+    { name: 'Sideways', priceChange: 1.0, volMult: 1.0 },
+    { name: 'Pump +30%', priceChange: 1.3, volMult: 1.3 },
+    { name: 'Dump -30%', priceChange: 0.7, volMult: 1.2 },
+    { name: 'Volatile', priceChange: 1.0, volMult: 1.5 },
+  ];
+
+  const comparisons = [];
+  scenarios.forEach(scenario => {
+    strategies.forEach(strategy => {
+      const concentration = calculateConcentration(strategy.toLowerCase());
+      const dailyFeeBase = capital * (apr / 100) / 365;
+      const dailyFee = dailyFeeBase * concentration * scenario.volMult;
+      const weeklyFee = dailyFee * 7;
+
+      const ilPercent = calculateIL(scenario.priceChange);
+      const ilLoss = capital * (Math.abs(ilPercent) / 100);
+
+      const roi = calculateROI(capital, weeklyFee, ilLoss);
+
+      comparisons.push({
+        poolName: scenario.name,
+        strategy,
+        results: { roi },
+      });
+    });
+  });
+
+  return comparisons;
+}
 
 const ChartDashboard = ({
   calculatorData = null,
-  comparisonData = null,
   poolData = null
 }) => {
   const [activeTab, setActiveTab] = useState('il');
@@ -23,10 +56,16 @@ const ChartDashboard = ({
   const [rangeStrategy, setRangeStrategy] = useState(calculatorData?.strategy || 'curve');
   const [rangePercent, setRangePercent] = useState(20);
 
+  // Generate ROI comparison data from controls
+  const roiComparisons = useMemo(
+    () => generateROIComparisons(feeCapital, feeApr),
+    [feeCapital, feeApr]
+  );
+
   const tabs = [
     { id: 'il', name: 'Impermanent Loss', icon: '📉', available: true },
     { id: 'fees', name: 'Fee Projection', icon: '💰', available: true },
-    { id: 'comparison', name: 'ROI Comparison', icon: '📊', available: comparisonData && comparisonData.length > 0 },
+    { id: 'comparison', name: 'ROI Comparison', icon: '📊', available: true },
     { id: 'range', name: 'Price Range', icon: '🎯', available: true }
   ];
 
@@ -53,7 +92,7 @@ const ChartDashboard = ({
       case 'comparison':
         return (
           <ROIComparisonChart
-            comparisons={comparisonData}
+            comparisons={roiComparisons}
           />
         );
 
@@ -79,20 +118,15 @@ const ChartDashboard = ({
         <div className="flex space-x-2 overflow-x-auto">
           {tabs.map(tab => {
             const isActive = activeTab === tab.id;
-            const isAvailable = tab.available !== false;
-
             return (
               <button
                 key={tab.id}
-                onClick={() => isAvailable && setActiveTab(tab.id)}
-                disabled={!isAvailable}
+                onClick={() => setActiveTab(tab.id)}
                 className={`
                   flex-1 min-w-[140px] px-4 py-3 rounded-lg font-medium text-sm transition-all
                   ${isActive
                     ? 'bg-blue-600 text-white shadow-md'
-                    : isAvailable
-                      ? 'bg-gray-50 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-600'
-                      : 'bg-gray-50 dark:bg-slate-700 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50'
+                    : 'bg-gray-50 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-600'
                   }
                 `}
               >
@@ -137,10 +171,12 @@ const ChartDashboard = ({
         </div>
       )}
 
-      {/* Fee Projection Controls */}
-      {activeTab === 'fees' && (
+      {/* Fee Projection & ROI Comparison Controls */}
+      {(activeTab === 'fees' || activeTab === 'comparison') && (
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-600 p-4">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Projection Settings</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+            {activeTab === 'fees' ? 'Projection Settings' : 'Comparison Settings'}
+          </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -169,21 +205,23 @@ const ChartDashboard = ({
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Time Period
-              </label>
-              <select
-                value={monthsToProject}
-                onChange={(e) => setMonthsToProject(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-              >
-                <option value={3}>3 Months</option>
-                <option value={6}>6 Months</option>
-                <option value={12}>12 Months</option>
-                <option value={24}>24 Months</option>
-              </select>
-            </div>
+            {activeTab === 'fees' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Time Period
+                </label>
+                <select
+                  value={monthsToProject}
+                  onChange={(e) => setMonthsToProject(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                >
+                  <option value={3}>3 Months</option>
+                  <option value={6}>6 Months</option>
+                  <option value={12}>12 Months</option>
+                  <option value={24}>24 Months</option>
+                </select>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -245,7 +283,7 @@ const ChartDashboard = ({
             <p className="text-xs text-gray-700 dark:text-gray-300">
               {activeTab === 'il' && 'IL occurs when token prices diverge from your entry point. The curve shows maximum loss is capped around 5.7% at extreme price changes.'}
               {activeTab === 'fees' && 'Projections assume constant APR and no compounding. Actual fees may vary based on trading volume and market conditions.'}
-              {activeTab === 'comparison' && 'Higher bars indicate better ROI. Trophy icon marks the best performer. Use this to identify optimal pool-strategy combinations.'}
+              {activeTab === 'comparison' && 'Membandingkan ROI 3 strategi (Spot/Curve/Bid-Ask) di 4 skenario harga. Sesuaikan Capital dan APR untuk simulasi.'}
               {activeTab === 'range' && 'Distribution shows how liquidity is allocated across price ranges. Taller bars mean more capital deployed at that price level.'}
             </p>
           </div>
