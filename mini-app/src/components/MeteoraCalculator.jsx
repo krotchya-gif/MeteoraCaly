@@ -38,45 +38,45 @@ export const POOLS_DATA = [
 const PoolCard = React.memo(function PoolCard({ pool, onSelect, isSelected }) {
   const volumeToTvl = ((pool.volume_24h / pool.tvl) * 100).toFixed(0);
   const dailyYield = ((pool.fees_24h / pool.tvl) * 100).toFixed(2);
-  
+
   return (
     <div
       onClick={() => onSelect(pool)}
       className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
         isSelected
-          ? 'border-purple-500 bg-purple-900'
-          : 'border-slate-600 bg-slate-800 hover:border-purple-400'
+          ? 'border-purple-500 dark:bg-purple-900 bg-purple-50'
+          : 'dark:border-slate-600 border-gray-200 dark:bg-slate-800 bg-white hover:border-purple-400'
       }`}
     >
       <div className="flex justify-between items-start mb-3">
         <div>
-          <h3 className="text-lg font-bold text-white">{pool.pair}</h3>
-          <span className="text-xs px-2 py-1 rounded bg-blue-900 text-blue-300">
+          <h3 className="text-lg font-bold dark:text-white text-gray-900">{pool.pair}</h3>
+          <span className="text-xs px-2 py-1 rounded dark:bg-blue-900 bg-blue-100 dark:text-blue-300 text-blue-700">
             {pool.type}
           </span>
         </div>
         <div className="text-right">
-          <div className="text-sm text-gray-400">TVL</div>
-          <div className="text-white font-mono">${(pool.tvl / 1000).toFixed(0)}K</div>
+          <div className="text-sm dark:text-gray-400 text-gray-500">TVL</div>
+          <div className="dark:text-white text-gray-900 font-mono">${(pool.tvl / 1000).toFixed(0)}K</div>
         </div>
       </div>
-      
+
       <div className="grid grid-cols-3 gap-2 text-sm">
         <div>
-          <div className="text-gray-400">24h Vol</div>
-          <div className="text-white font-mono">${(pool.volume_24h / 1000000).toFixed(1)}M</div>
+          <div className="dark:text-gray-400 text-gray-500">24h Vol</div>
+          <div className="dark:text-white text-gray-900 font-mono">${(pool.volume_24h / 1000000).toFixed(1)}M</div>
         </div>
         <div>
-          <div className="text-gray-400">24h Fees</div>
-          <div className="text-green-400 font-mono">${(pool.fees_24h / 1000).toFixed(1)}K</div>
+          <div className="dark:text-gray-400 text-gray-500">24h Fees</div>
+          <div className="text-green-600 dark:text-green-400 font-mono">${(pool.fees_24h / 1000).toFixed(1)}K</div>
         </div>
         <div>
-          <div className="text-gray-400">Daily Yield</div>
-          <div className="text-purple-400 font-bold">{dailyYield}%</div>
+          <div className="dark:text-gray-400 text-gray-500">Daily Yield</div>
+          <div className="text-purple-600 dark:text-purple-400 font-bold">{dailyYield}%</div>
         </div>
       </div>
-      
-      <div className="mt-2 text-xs text-gray-400">
+
+      <div className="mt-2 text-xs dark:text-gray-400 text-gray-500">
         Vol/TVL: {volumeToTvl}x | Fee: {pool.total_trading_fee}%
       </div>
     </div>
@@ -111,7 +111,6 @@ function CalculatorView({ pool, onBack, onSave }) {
     const scenario = scenarios[priceScenario];
     const concentration = calculateConcentration(strategy);
 
-    // Fee calculation
     const adjustedVolume = pool.volume_24h * scenario.volumeMultiplier;
     const dailyFee = calculateFees(
       pool.tvl,
@@ -122,18 +121,14 @@ function CalculatorView({ pool, onBack, onSave }) {
     );
     const weeklyFee = dailyFee * 7;
 
-    // IL calculation
     const ilPercent = calculateIL(scenario.priceChange);
     const ilLoss = capital * (Math.abs(ilPercent) / 100);
 
-    // ROI calculation
     const weeklyROI = calculateROI(capital, weeklyFee, ilLoss);
     const monthlyROI = calculateROI(capital, weeklyFee * 4.33, ilLoss * 4.33);
 
-    // Break-even
     const breakEvenDays = ilLoss > 0 ? (ilLoss / dailyFee).toFixed(1) : 0;
 
-    // Split calculation (safely handle missing price_usd)
     const t0Price = pool.token0?.price_usd || 0;
     const t1Price = pool.token1?.price_usd || 0;
     const token0Amount = t0Price > 0 ? capital / 2 / t0Price : 0;
@@ -152,49 +147,49 @@ function CalculatorView({ pool, onBack, onSave }) {
       netWeekly: weeklyFee - ilLoss
     });
   };
-  
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
-          className="text-purple-400 hover:text-purple-300"
+          className="text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300"
         >
           ← Back
         </button>
         <div className="text-right">
-          <h2 className="text-xl font-bold text-white">{pool.pair}</h2>
-          <span className="text-sm text-gray-400">{pool.type}</span>
+          <h2 className="text-xl font-bold dark:text-white text-gray-900">{pool.pair}</h2>
+          <span className="text-sm dark:text-gray-400 text-gray-500">{pool.type}</span>
         </div>
       </div>
-      
+
       {/* Capital Input */}
-      <div className="bg-slate-800 p-4 rounded-xl">
-        <label className="block text-sm text-gray-300 mb-2">Capital (USD)</label>
+      <div className="dark:bg-slate-800 bg-white border dark:border-slate-700 border-gray-200 p-4 rounded-xl">
+        <label className="block text-sm dark:text-gray-300 text-gray-700 mb-2">Capital (USD)</label>
         <div className="relative">
-          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 dark:text-gray-400 text-gray-500" />
           <input
             type="number"
             value={capital}
             onChange={(e) => setCapital(Number(e.target.value))}
-            className="w-full pl-10 pr-4 py-3 bg-slate-600 text-white rounded-lg border border-slate-500 focus:border-purple-500 outline-none"
+            className="w-full pl-10 pr-4 py-3 dark:bg-slate-600 bg-gray-50 dark:text-white text-gray-900 rounded-lg border dark:border-slate-500 border-gray-300 focus:border-purple-500 outline-none"
             min="10"
             step="10"
           />
         </div>
       </div>
-      
+
       {/* Type Toggle */}
-      <div className="bg-slate-800 p-4 rounded-xl">
-        <label className="block text-sm text-gray-300 mb-2">Pool Type</label>
+      <div className="dark:bg-slate-800 bg-white border dark:border-slate-700 border-gray-200 p-4 rounded-xl">
+        <label className="block text-sm dark:text-gray-300 text-gray-700 mb-2">Pool Type</label>
         <div className="flex gap-2">
           <button
             onClick={() => setPoolType('DLMM')}
             className={`flex-1 py-2 rounded-lg font-semibold transition ${
               poolType === 'DLMM'
                 ? 'bg-purple-500 text-white'
-                : 'bg-slate-600 text-gray-300 hover:bg-slate-500'
+                : 'dark:bg-slate-600 bg-gray-100 dark:text-gray-300 text-gray-600 dark:hover:bg-slate-500 hover:bg-gray-200'
             }`}
           >
             DLMM
@@ -204,22 +199,22 @@ function CalculatorView({ pool, onBack, onSave }) {
             className={`flex-1 py-2 rounded-lg font-semibold transition ${
               poolType === 'DAMM'
                 ? 'bg-purple-500 text-white'
-                : 'bg-slate-600 text-gray-300 hover:bg-slate-500'
+                : 'dark:bg-slate-600 bg-gray-100 dark:text-gray-300 text-gray-600 dark:hover:bg-slate-500 hover:bg-gray-200'
             }`}
           >
             DAMM
           </button>
         </div>
       </div>
-      
+
       {/* Strategy Selector (DLMM only) */}
       {poolType === 'DLMM' && (
-        <div className="bg-slate-800 p-4 rounded-xl">
-          <label className="block text-sm text-gray-300 mb-2">Strategy</label>
+        <div className="dark:bg-slate-800 bg-white border dark:border-slate-700 border-gray-200 p-4 rounded-xl">
+          <label className="block text-sm dark:text-gray-300 text-gray-700 mb-2">Strategy</label>
           <select
             value={strategy}
             onChange={(e) => setStrategy(e.target.value)}
-            className="w-full p-3 bg-slate-600 text-white rounded-lg border border-slate-500 focus:border-purple-500 outline-none"
+            className="w-full p-3 dark:bg-slate-600 bg-gray-50 dark:text-white text-gray-900 rounded-lg border dark:border-slate-500 border-gray-300 focus:border-purple-500 outline-none"
           >
             <option value="spot">Spot (Tight Range)</option>
             <option value="curve">Curve (Medium Range)</option>
@@ -227,101 +222,101 @@ function CalculatorView({ pool, onBack, onSave }) {
           </select>
         </div>
       )}
-      
+
       {/* Price Scenario */}
-      <div className="bg-slate-800 p-4 rounded-xl">
-        <label className="block text-sm text-gray-300 mb-2">Price Scenario</label>
+      <div className="dark:bg-slate-800 bg-white border dark:border-slate-700 border-gray-200 p-4 rounded-xl">
+        <label className="block text-sm dark:text-gray-300 text-gray-700 mb-2">Price Scenario</label>
         <select
           value={priceScenario}
           onChange={(e) => setPriceScenario(e.target.value)}
-          className="w-full p-3 bg-slate-600 text-white rounded-lg border border-slate-500 focus:border-purple-500 outline-none"
+          className="w-full p-3 dark:bg-slate-600 bg-gray-50 dark:text-white text-gray-900 rounded-lg border dark:border-slate-500 border-gray-300 focus:border-purple-500 outline-none"
         >
           {Object.entries(scenarios).map(([key, scenario]) => (
             <option key={key} value={key}>{scenario.label}</option>
           ))}
         </select>
       </div>
-      
+
       {/* Results */}
       {results && (
         <div className="space-y-3">
           {/* Position Split */}
-          <div className="bg-slate-800 p-4 rounded-xl border border-slate-600">
-            <h3 className="text-sm font-semibold text-blue-400 mb-3">Your Position</h3>
+          <div className="dark:bg-slate-800 bg-white p-4 rounded-xl border dark:border-slate-600 border-gray-200">
+            <h3 className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-3">Your Position</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-300">{pool.token0.symbol}:</span>
-                <span className="text-white font-mono">{results.token0Amount.toFixed(2)}</span>
+                <span className="dark:text-gray-300 text-gray-600">{pool.token0.symbol}:</span>
+                <span className="dark:text-white text-gray-900 font-mono">{results.token0Amount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-300">{pool.token1.symbol}:</span>
-                <span className="text-white font-mono">{results.token1Amount.toFixed(2)}</span>
+                <span className="dark:text-gray-300 text-gray-600">{pool.token1.symbol}:</span>
+                <span className="dark:text-white text-gray-900 font-mono">{results.token1Amount.toFixed(2)}</span>
               </div>
             </div>
           </div>
-          
+
           {/* Fee Earnings */}
-          <div className="bg-slate-800 p-4 rounded-xl border border-slate-600">
-            <h3 className="text-sm font-semibold text-green-400 mb-3 flex items-center gap-2">
+          <div className="dark:bg-slate-800 bg-white p-4 rounded-xl border dark:border-slate-600 border-gray-200">
+            <h3 className="text-sm font-semibold text-green-600 dark:text-green-400 mb-3 flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
               Fee Earnings
             </h3>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-gray-300">Daily:</span>
-                <span className="text-green-400 font-bold text-lg">${results.dailyFee.toFixed(2)}</span>
+                <span className="dark:text-gray-300 text-gray-600">Daily:</span>
+                <span className="text-green-600 dark:text-green-400 font-bold text-lg">${results.dailyFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-300">Weekly:</span>
-                <span className="text-green-400 font-bold text-xl">${results.weeklyFee.toFixed(2)}</span>
+                <span className="dark:text-gray-300 text-gray-600">Weekly:</span>
+                <span className="text-green-600 dark:text-green-400 font-bold text-xl">${results.weeklyFee.toFixed(2)}</span>
               </div>
             </div>
           </div>
-          
+
           {/* IL & ROI */}
-          <div className="bg-slate-800 p-4 rounded-xl border border-slate-600">
-            <h3 className="text-sm font-semibold text-purple-400 mb-3">Performance</h3>
+          <div className="dark:bg-slate-800 bg-white p-4 rounded-xl border dark:border-slate-600 border-gray-200">
+            <h3 className="text-sm font-semibold text-purple-600 dark:text-purple-400 mb-3">Performance</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-300">Impermanent Loss:</span>
-                <span className="text-yellow-400 font-mono">{results.ilPercent.toFixed(2)}%</span>
+                <span className="dark:text-gray-300 text-gray-600">Impermanent Loss:</span>
+                <span className="text-yellow-600 dark:text-yellow-400 font-mono">{results.ilPercent.toFixed(2)}%</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-300">IL Loss:</span>
-                <span className="text-red-400 font-mono">-${results.ilLoss.toFixed(2)}</span>
+                <span className="dark:text-gray-300 text-gray-600">IL Loss:</span>
+                <span className="text-red-600 dark:text-red-400 font-mono">-${results.ilLoss.toFixed(2)}</span>
               </div>
-              <div className="border-t border-slate-600 my-2"></div>
+              <div className="border-t dark:border-slate-600 border-gray-200 my-2"></div>
               <div className="flex justify-between">
-                <span className="text-gray-300">Net Weekly:</span>
-                <span className={`font-bold text-lg ${results.netWeekly > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <span className="dark:text-gray-300 text-gray-600">Net Weekly:</span>
+                <span className={`font-bold text-lg ${results.netWeekly > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   ${results.netWeekly.toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-300">Weekly ROI:</span>
-                <span className={`font-bold text-xl ${results.weeklyROI > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <span className="dark:text-gray-300 text-gray-600">Weekly ROI:</span>
+                <span className={`font-bold text-xl ${results.weeklyROI > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   {results.weeklyROI > 0 ? '+' : ''}{results.weeklyROI.toFixed(2)}%
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-300">Monthly ROI:</span>
-                <span className={`font-mono ${results.monthlyROI > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <span className="dark:text-gray-300 text-gray-600">Monthly ROI:</span>
+                <span className={`font-mono ${results.monthlyROI > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   {results.monthlyROI > 0 ? '+' : ''}{results.monthlyROI.toFixed(2)}%
                 </span>
               </div>
             </div>
           </div>
-          
+
           {/* Break-even */}
           {results.breakEvenDays > 0 && (
-            <div className="bg-yellow-950 p-3 rounded-lg border border-yellow-700 flex items-start gap-2">
-              <Info className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-yellow-200">
+            <div className="dark:bg-yellow-950 bg-yellow-50 p-3 rounded-lg border dark:border-yellow-700 border-yellow-300 flex items-start gap-2">
+              <Info className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div className="text-sm dark:text-yellow-200 text-yellow-800">
                 Break-even: <span className="font-bold">{results.breakEvenDays} days</span> to cover IL with fees
               </div>
             </div>
           )}
-          
+
           {/* Save Button */}
           {onSave && (
             <button
@@ -349,9 +344,9 @@ function CalculatorView({ pool, onBack, onSave }) {
           )}
 
           {/* Disclaimer */}
-          <div className="bg-red-950 p-3 rounded-lg border border-red-700 flex items-start gap-2">
-            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-            <div className="text-xs text-red-200">
+          <div className="dark:bg-red-950 bg-red-50 p-3 rounded-lg border dark:border-red-700 border-red-300 flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="text-xs dark:text-red-200 text-red-700">
               Projections assume constant volume. Not financial advice. DYOR!
             </div>
           </div>
@@ -363,7 +358,7 @@ function CalculatorView({ pool, onBack, onSave }) {
 
 // Main App
 export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false, onRefresh, lastUpdated, onSave }) {
-  const [view, setView] = useState('pools'); // 'pools' or 'calculator'
+  const [view, setView] = useState('pools');
   const [selectedPool, setSelectedPool] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
@@ -385,15 +380,15 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
         {/* Header */}
         <div className="text-center mb-6">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Calculator className="w-8 h-8 text-purple-400" />
-            <h1 className="text-2xl font-bold text-white">Meteora Calculator</h1>
+            <Calculator className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+            <h1 className="text-2xl font-bold dark:text-white text-gray-900">Meteora Calculator</h1>
           </div>
-          <p className="text-gray-400 text-sm">DLMM & DAMM Position Analysis</p>
+          <p className="dark:text-gray-400 text-gray-500 text-sm">DLMM & DAMM Position Analysis</p>
           {onRefresh && (
             <button
               onClick={onRefresh}
               disabled={loading}
-              className="mt-2 inline-flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors disabled:opacity-50"
+              className="mt-2 inline-flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
               {loading ? 'Memuat...' : 'Refresh Data'}
@@ -405,13 +400,13 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
         {view === 'pools' ? (
           <div className="space-y-4">
             {/* Search & Filter */}
-            <div className="bg-slate-800 p-4 rounded-xl space-y-3">
+            <div className="dark:bg-slate-800 bg-white border dark:border-slate-700 border-gray-200 p-4 rounded-xl space-y-3">
               <input
                 type="text"
                 placeholder="Search pools..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full p-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-purple-500 outline-none"
+                className="w-full p-3 dark:bg-slate-700 bg-gray-50 dark:text-white text-gray-900 rounded-lg border dark:border-slate-600 border-gray-300 focus:border-purple-500 outline-none placeholder:text-gray-400"
               />
 
               <div className="flex gap-2">
@@ -422,7 +417,7 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
                     className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
                       filterType === type
                         ? 'bg-purple-500 text-white'
-                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                        : 'dark:bg-slate-700 bg-gray-100 dark:text-gray-300 text-gray-600 dark:hover:bg-slate-600 hover:bg-gray-200'
                     }`}
                   >
                     {type}
@@ -434,14 +429,14 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
             {/* Loading State */}
             {loading && pools.length <= 2 && (
               <div className="text-center py-8">
-                <RefreshCw className="w-8 h-8 text-purple-400 animate-spin mx-auto mb-3" />
-                <p className="text-gray-400 text-sm">Memuat data pool dari Meteora API...</p>
+                <RefreshCw className="w-8 h-8 text-purple-500 animate-spin mx-auto mb-3" />
+                <p className="dark:text-gray-400 text-gray-500 text-sm">Memuat data pool dari Meteora API...</p>
               </div>
             )}
 
             {/* Pool Count */}
             {!loading && (
-              <div className="text-xs text-gray-500 px-1">
+              <div className="text-xs dark:text-gray-500 text-gray-400 px-1">
                 {filteredPools.length} pool ditemukan
               </div>
             )}
@@ -459,7 +454,7 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
             </div>
 
             {!loading && filteredPools.length === 0 && (
-              <div className="text-center py-12 text-gray-400">
+              <div className="text-center py-12 dark:text-gray-400 text-gray-500">
                 No pools found
               </div>
             )}
@@ -473,7 +468,7 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
         )}
 
         {/* Footer */}
-        <div className="mt-8 text-center text-xs text-gray-500">
+        <div className="mt-8 text-center text-xs dark:text-gray-500 text-gray-400">
           <p>
             {lastUpdated
               ? `Live data • Updated ${lastUpdated.toLocaleTimeString()}`

@@ -108,7 +108,7 @@ function App() {
   return (
     <div className="min-h-screen dark:bg-slate-900 bg-gray-50">
       {/* Top Tab Navigation */}
-      <nav className="sticky top-0 z-50 bg-slate-800 dark:bg-slate-800 bg-white border-b border-slate-600 dark:border-slate-600 border-gray-200">
+      <nav className="sticky top-0 z-50 dark:bg-slate-800 bg-white border-b dark:border-slate-600 border-gray-200">
         <div className="max-w-2xl mx-auto flex items-center">
           {tabs.map(tab => {
             const Icon = tab.icon;
