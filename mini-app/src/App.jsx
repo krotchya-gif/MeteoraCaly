@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Calculator, BarChart3, LineChart, Sun, Moon } from 'lucide-react';
+import { Calculator, BarChart3, LineChart, Clock, Sun, Moon } from 'lucide-react';
 import MeteoraCalculator, { POOLS_DATA } from './components/MeteoraCalculator';
 import ComparisonView from './components/ComparisonView';
 import ChartDashboard from './components/charts/ChartDashboard';
+import HistoryView from './components/HistoryView';
+import useHistory from './hooks/useHistory';
 
 const API_URL = 'https://meteora-calculator-api.infocyber001.workers.dev';
 
@@ -39,6 +41,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+  const { history, saveCalculation, deleteEntry, clearHistory } = useHistory();
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -83,6 +86,7 @@ function App() {
     { id: 'calculator', label: 'Calculator', icon: Calculator },
     { id: 'comparison', label: 'Compare', icon: BarChart3 },
     { id: 'charts', label: 'Charts', icon: LineChart },
+    { id: 'history', label: 'History', icon: Clock, badge: history.length || null },
   ];
 
   return (
@@ -105,6 +109,11 @@ function App() {
               >
                 <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>
+                {tab.badge && (
+                  <span className="min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-purple-500 text-white rounded-full px-1">
+                    {tab.badge > 9 ? '9+' : tab.badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -125,6 +134,7 @@ function App() {
           loading={loading}
           onRefresh={fetchPools}
           lastUpdated={lastUpdated}
+          onSave={saveCalculation}
         />
       )}
 
@@ -135,6 +145,14 @@ function App() {
             onBack={() => handleTabChange('calculator')}
           />
         </ErrorBoundary>
+      )}
+
+      {activeTab === 'history' && (
+        <HistoryView
+          history={history}
+          onDelete={deleteEntry}
+          onClear={clearHistory}
+        />
       )}
 
       {activeTab === 'charts' && (

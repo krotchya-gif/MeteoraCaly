@@ -111,12 +111,13 @@ function PoolCard({ pool, onSelect, isSelected }) {
 }
 
 // Calculator Component
-function CalculatorView({ pool, onBack }) {
+function CalculatorView({ pool, onBack, onSave }) {
   const [capital, setCapital] = useState(500);
   const [poolType, setPoolType] = useState(pool.type);
   const [strategy, setStrategy] = useState('curve');
   const [results, setResults] = useState(null);
   const [priceScenario, setPriceScenario] = useState('sideways');
+  const [saved, setSaved] = useState(false);
 
   const strategies = poolType === 'DLMM'
     ? ['spot', 'curve', 'bid-ask']
@@ -348,6 +349,32 @@ function CalculatorView({ pool, onBack }) {
             </div>
           )}
           
+          {/* Save Button */}
+          {onSave && (
+            <button
+              onClick={() => {
+                onSave({
+                  pool: pool.pair,
+                  capital,
+                  strategy,
+                  poolType,
+                  scenario: priceScenario,
+                  results,
+                });
+                setSaved(true);
+                setTimeout(() => setSaved(false), 2000);
+              }}
+              disabled={saved}
+              className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${
+                saved
+                  ? 'bg-green-600 text-white'
+                  : 'bg-purple-600 hover:bg-purple-500 text-white'
+              }`}
+            >
+              {saved ? '✓ Tersimpan!' : 'Save ke History'}
+            </button>
+          )}
+
           {/* Disclaimer */}
           <div className="bg-red-950 p-3 rounded-lg border border-red-700 flex items-start gap-2">
             <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
@@ -362,7 +389,7 @@ function CalculatorView({ pool, onBack }) {
 }
 
 // Main App
-export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false, onRefresh, lastUpdated }) {
+export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false, onRefresh, lastUpdated, onSave }) {
   const [view, setView] = useState('pools'); // 'pools' or 'calculator'
   const [selectedPool, setSelectedPool] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -468,6 +495,7 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
           <CalculatorView
             pool={selectedPool}
             onBack={() => setView('pools')}
+            onSave={onSave}
           />
         )}
 
