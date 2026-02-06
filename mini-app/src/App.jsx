@@ -3,10 +3,12 @@ import { Calculator, BarChart3, LineChart, Clock, BookOpen, Sun, Moon } from 'lu
 import MeteoraCalculator, { POOLS_DATA } from './components/MeteoraCalculator';
 import useHistory from './hooks/useHistory';
 
-// Lazy load tab components - only loaded when user navigates to them
+// Direct import for small/critical components
+import HistoryView from './components/HistoryView';
+
+// Lazy load larger tab components
 const ComparisonView = lazy(() => import('./components/ComparisonView'));
 const ChartDashboard = lazy(() => import('./components/charts/ChartDashboard'));
-const HistoryView = lazy(() => import('./components/HistoryView'));
 const LearnView = lazy(() => import('./components/LearnView'));
 
 const API_URL = 'https://meteora-calculator-api.infocyber001.workers.dev';
@@ -172,6 +174,16 @@ function App() {
         />
       )}
 
+      {activeTab === 'history' && (
+        <ErrorBoundary>
+          <HistoryView
+            history={history}
+            onDelete={deleteEntry}
+            onClear={clearHistory}
+          />
+        </ErrorBoundary>
+      )}
+
       <Suspense fallback={<TabFallback />}>
         {activeTab === 'comparison' && (
           <ErrorBoundary>
@@ -180,14 +192,6 @@ function App() {
               onBack={() => handleTabChange('calculator')}
             />
           </ErrorBoundary>
-        )}
-
-        {activeTab === 'history' && (
-          <HistoryView
-            history={history}
-            onDelete={deleteEntry}
-            onClear={clearHistory}
-          />
         )}
 
         {activeTab === 'learn' && (

@@ -13,7 +13,11 @@ function readHistory() {
 }
 
 function writeHistory(entries) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  } catch {
+    // localStorage might be unavailable in some mobile WebViews
+  }
 }
 
 export default function useHistory() {
