@@ -11,51 +11,24 @@ const ChartDashboard = ({
 }) => {
   const [activeTab, setActiveTab] = useState('il');
 
+  // IL Chart controls
+  const [priceChange, setPriceChange] = useState(calculatorData?.priceChange || 10);
+
+  // Fee Projection controls
+  const [monthsToProject, setMonthsToProject] = useState(12);
+  const [feeCapital, setFeeCapital] = useState(calculatorData?.capital || 500);
+  const [feeApr, setFeeApr] = useState(calculatorData?.results?.apr || 30);
+
+  // Price Range controls
+  const [rangeStrategy, setRangeStrategy] = useState(calculatorData?.strategy || 'curve');
+  const [rangePercent, setRangePercent] = useState(20);
+
   const tabs = [
     { id: 'il', name: 'Impermanent Loss', icon: '📉', available: true },
-    { id: 'fees', name: 'Fee Projection', icon: '💰', available: calculatorData || comparisonData },
+    { id: 'fees', name: 'Fee Projection', icon: '💰', available: true },
     { id: 'comparison', name: 'ROI Comparison', icon: '📊', available: comparisonData && comparisonData.length > 0 },
-    { id: 'range', name: 'Price Range', icon: '🎯', available: calculatorData || poolData }
+    { id: 'range', name: 'Price Range', icon: '🎯', available: true }
   ];
-
-  // Get data for fee projection chart
-  const getFeeProjectionData = () => {
-    if (calculatorData) {
-      return {
-        capital: calculatorData.capital,
-        apr: calculatorData.results?.apr || 30,
-        strategy: calculatorData.strategy || 'curve'
-      };
-    }
-    if (comparisonData && comparisonData.length > 0) {
-      const best = comparisonData[0];
-      return {
-        capital: best.capital,
-        apr: best.results.apr,
-        strategy: best.strategy.toLowerCase()
-      };
-    }
-    return { capital: 500, apr: 30, strategy: 'curve' };
-  };
-
-  // Get data for price range chart
-  const getPriceRangeData = () => {
-    if (calculatorData) {
-      return {
-        currentPrice: calculatorData.currentPrice || 100,
-        strategy: calculatorData.strategy || 'curve',
-        priceRangePercent: 20
-      };
-    }
-    if (poolData) {
-      return {
-        currentPrice: poolData.currentPrice || 100,
-        strategy: poolData.strategy || 'curve',
-        priceRangePercent: 20
-      };
-    }
-    return { currentPrice: 100, strategy: 'curve', priceRangePercent: 20 };
-  };
 
   const renderChart = () => {
     switch (activeTab) {
@@ -63,18 +36,17 @@ const ChartDashboard = ({
         return (
           <ILChart
             priceChangeRange={[-50, 100]}
-            currentPriceChange={calculatorData?.priceChange || 10}
+            currentPriceChange={priceChange}
           />
         );
 
       case 'fees':
-        const feeData = getFeeProjectionData();
         return (
           <FeeProjectionChart
-            capital={feeData.capital}
-            apr={feeData.apr}
-            strategy={feeData.strategy}
-            monthsToProject={12}
+            capital={feeCapital}
+            apr={feeApr}
+            strategy={rangeStrategy}
+            monthsToProject={monthsToProject}
           />
         );
 
@@ -86,12 +58,11 @@ const ChartDashboard = ({
         );
 
       case 'range':
-        const rangeData = getPriceRangeData();
         return (
           <PriceRangeChart
-            currentPrice={rangeData.currentPrice}
-            strategy={rangeData.strategy}
-            priceRangePercent={rangeData.priceRangePercent}
+            currentPrice={calculatorData?.currentPrice || poolData?.currentPrice || 100}
+            strategy={rangeStrategy}
+            priceRangePercent={rangePercent}
             showLiquidity={true}
           />
         );
@@ -140,71 +111,119 @@ const ChartDashboard = ({
         {renderChart()}
       </div>
 
-      {/* Chart Controls */}
+      {/* IL Chart Controls */}
       {activeTab === 'il' && (
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-600 p-4">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Chart Controls</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Current Price Change
-              </label>
-              <input
-                type="range"
-                min="-50"
-                max="100"
-                step="5"
-                defaultValue={calculatorData?.priceChange || 10}
-                className="w-full"
-                onChange={(e) => {
-                  console.log('Price change:', e.target.value);
-                }}
-              />
-              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-                <span>-50%</span>
-                <span>{calculatorData?.priceChange || 10}%</span>
-                <span>+100%</span>
-              </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Current Price Change: <span className="text-blue-600 font-bold">{priceChange > 0 ? '+' : ''}{priceChange}%</span>
+            </label>
+            <input
+              type="range"
+              min="-50"
+              max="100"
+              step="5"
+              value={priceChange}
+              className="w-full"
+              onChange={(e) => setPriceChange(Number(e.target.value))}
+            />
+            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <span>-50%</span>
+              <span>0%</span>
+              <span>+100%</span>
             </div>
           </div>
         </div>
       )}
 
+      {/* Fee Projection Controls */}
       {activeTab === 'fees' && (
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-600 p-4">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Projection Settings</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Capital ($)
+              </label>
+              <input
+                type="number"
+                value={feeCapital}
+                onChange={(e) => setFeeCapital(Math.max(10, Number(e.target.value)))}
+                min="10"
+                step="100"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                APR (%)
+              </label>
+              <input
+                type="number"
+                value={feeApr}
+                onChange={(e) => setFeeApr(Math.max(1, Number(e.target.value)))}
+                min="1"
+                max="500"
+                step="5"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Time Period
               </label>
-              <select className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
-                <option value="3">3 Months</option>
-                <option value="6">6 Months</option>
-                <option value="12" selected>12 Months</option>
-                <option value="24">24 Months</option>
+              <select
+                value={monthsToProject}
+                onChange={(e) => setMonthsToProject(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+              >
+                <option value={3}>3 Months</option>
+                <option value={6}>6 Months</option>
+                <option value={12}>12 Months</option>
+                <option value={24}>24 Months</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Price Range Controls */}
+      {activeTab === 'range' && (
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-600 p-4">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Range Settings</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Strategy
+              </label>
+              <select
+                value={rangeStrategy}
+                onChange={(e) => setRangeStrategy(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+              >
+                <option value="spot">Spot (Tight Range)</option>
+                <option value="curve">Curve (Medium Range)</option>
+                <option value="bid-ask">Bid-Ask (Wide Range)</option>
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Compounding
+                Price Range: <span className="text-blue-600 font-bold">±{rangePercent}%</span>
               </label>
-              <select className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
-                <option value="none" selected>No Compounding</option>
-                <option value="monthly">Monthly</option>
-                <option value="weekly">Weekly</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                IL Adjustment
-              </label>
-              <select className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white">
-                <option value="none" selected>Not Included</option>
-                <option value="conservative">Conservative (-2%)</option>
-                <option value="moderate">Moderate (-5%)</option>
-                <option value="aggressive">Aggressive (-10%)</option>
-              </select>
+              <input
+                type="range"
+                min="5"
+                max="50"
+                step="5"
+                value={rangePercent}
+                className="w-full"
+                onChange={(e) => setRangePercent(Number(e.target.value))}
+              />
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <span>±5%</span>
+                <span>±50%</span>
+              </div>
             </div>
           </div>
         </div>
@@ -231,22 +250,6 @@ const ChartDashboard = ({
             </p>
           </div>
         </div>
-      </div>
-
-      {/* Export Options */}
-      <div className="flex justify-end space-x-3">
-        <button className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center">
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Save as PNG
-        </button>
-        <button className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center">
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-          </svg>
-          Share Chart
-        </button>
       </div>
     </div>
   );
