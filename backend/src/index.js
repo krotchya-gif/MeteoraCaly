@@ -5,13 +5,20 @@
 const CONFIG = {
   METEORA_API: 'https://dlmm-api.meteora.ag',
   JUPITER_PRICE_API: 'https://api.jup.ag/price/v2',
-  CACHE_TTL: 300,           // 5 minutes in seconds
+  CACHE_TTL: 180,           // 3 minutes in seconds (reduced for fresher data)
   RATE_LIMIT: 100,          // requests per minute per IP
   RATE_LIMIT_WINDOW: 60,    // window in seconds
   MIN_TVL: 500,             // minimum TVL to include pool
   FETCH_LIMIT: 250,         // max per page from Meteora API
   MAX_TOP_N: 500,           // max pools to serve via API
   REQUEST_TIMEOUT: 25000,
+  // Opsi 3: Smart merge ratios
+  MERGE_RATIO: {
+    VOLUME: 0.35,     // 35% top volume pools
+    YIELD: 0.25,      // 25% top yield pools
+    TRENDING: 0.20,   // 20% trending by daily yield
+    NEWEST: 0.20,     // 20% newest pools
+  },
 };
 
 const CORS_HEADERS = {
@@ -25,8 +32,47 @@ const CORS_HEADERS = {
 // UTILITIES
 // ============================================
 
-function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
+/**
+ * Standardized success response format
+ * All responses have: success, data, meta, timestamp
+ */
+function successResponse(data, meta = {}) {
+  return new Response(JSON.stringify({
+    success: true,
+    data,
+    meta: {
+      cache_ttl: CONFIG.CACHE_TTL,
+      version: '1.0.0',
+      ...meta,
+    },
+    timestamp: new Date().toISOString(),
+  }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      ...CORS_HEADERS,
+    },
+  });
+}
+
+/**
+ * Standardized error response format
+ * All errors have: success, error, code, meta, timestamp
+ */
+function errorResponse(message, status = 500, code = 'INTERNAL_ERROR', meta = {}) {
+  return new Response(JSON.stringify({
+    success: false,
+    error: {
+      message,
+      code,
+    },
+    meta: {
+      status,
+      retry_after: status === 429 ? CONFIG.RATE_LIMIT_WINDOW : null,
+      ...meta,
+    },
+    timestamp: new Date().toISOString(),
+  }), {
     status,
     headers: {
       'Content-Type': 'application/json',
@@ -35,13 +81,15 @@ function jsonResponse(data, status = 200) {
   });
 }
 
-function errorResponse(message, status = 500, code = 'INTERNAL_ERROR') {
-  return jsonResponse({
-    success: false,
-    error: message,
-    code,
-    timestamp: new Date().toISOString(),
-  }, status);
+// Legacy support - will be removed in v2.0
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      ...CORS_HEADERS,
+    },
+  });
 }
 
 function getClientIP(request) {
@@ -139,24 +187,63 @@ async function fetchMeteoraPage(sortKey, limit, page = 0) {
   }
 }
 
-async function fetchMeteoraPoolsRaw() {
-  // Fetch from multiple sort criteria to catch both high-volume and high-yield pools
-  const [byVolume, byYield] = await Promise.all([
-    fetchMeteoraPage('volume', CONFIG.FETCH_LIMIT),
-    fetchMeteoraPage('feetvlratio', CONFIG.FETCH_LIMIT),
-  ]);
+/**
+ * Smart merge pools from multiple sources with weighted distribution
+ * Opsi 3: Volume (35%) + Yield (25%) + Trending (20%) + Newest (20%)
+ */
+function smartMerge(byVolume, byYield, byTrending, byNewest) {
+  const TARGET_COUNT = 250;
+  const counts = {
+    volume: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.VOLUME),
+    yield: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.YIELD),
+    trending: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.TRENDING),
+    newest: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.NEWEST),
+  };
 
-  // Merge and deduplicate by address
   const seen = new Set();
   const merged = [];
-  for (const pool of [...byVolume, ...byYield]) {
-    if (pool.address && !seen.has(pool.address)) {
-      seen.add(pool.address);
-      merged.push(pool);
+
+  // Helper to add pools without duplicates
+  const addPools = (pools, limit) => {
+    let added = 0;
+    for (const pool of pools) {
+      if (added >= limit) break;
+      if (pool.address && !seen.has(pool.address)) {
+        seen.add(pool.address);
+        merged.push(pool);
+        added++;
+      }
     }
+    return added;
+  };
+
+  // Add pools in order: Volume → Yield → Trending → Newest
+  addPools(byVolume, counts.volume);
+  addPools(byYield, counts.yield);
+  addPools(byTrending, counts.trending);
+  addPools(byNewest, counts.newest);
+
+  // Fill remaining slots with any leftover pools
+  const remaining = TARGET_COUNT - merged.length;
+  if (remaining > 0) {
+    const all = [...byVolume, ...byYield, ...byTrending, ...byNewest];
+    addPools(all, remaining);
   }
 
   return merged;
+}
+
+async function fetchMeteoraPoolsRaw() {
+  // Opsi 3: Fetch from 4 different sort criteria for maximum diversity
+  const [byVolume, byYield, byTrending, byNewest] = await Promise.all([
+    fetchMeteoraPage('volume', 150),         // Top 150 by 24h volume
+    fetchMeteoraPage('feetvlratio', 150),    // Top 150 by yield (fees/TVL)
+    fetchMeteoraPage('trade_volume_24h', 100), // Trending by volume activity
+    fetchMeteoraPage('updated_at', 100),     // 100 newest/recently updated pools
+  ]);
+
+  // Smart merge with weighted distribution
+  return smartMerge(byVolume, byYield, byTrending, byNewest);
 }
 
 function transformPool(pool) {
@@ -233,15 +320,17 @@ async function fetchAllPools(env) {
 async function handleGetPools(env) {
   const pools = await fetchAllPools(env);
 
-  return jsonResponse({
-    success: true,
-    data: {
+  return successResponse(
+    {
       pools,
       count: pools.length,
-      last_updated: pools[0]?.last_updated || new Date().toISOString(),
     },
-    timestamp: new Date().toISOString(),
-  });
+    {
+      last_updated: pools[0]?.last_updated || new Date().toISOString(),
+      source: 'meteora_api',
+      merge_strategy: 'volume_yield_trending_newest',
+    }
+  );
 }
 
 async function handleGetPool(poolId, env) {
@@ -256,11 +345,10 @@ async function handleGetPool(poolId, env) {
     return errorResponse('Pool not found', 404, 'POOL_NOT_FOUND');
   }
 
-  return jsonResponse({
-    success: true,
-    data: { pool },
-    timestamp: new Date().toISOString(),
-  });
+  return successResponse(
+    { pool },
+    { source: 'cache' }
+  );
 }
 
 async function handleGetTopPools(n, env) {
@@ -268,15 +356,17 @@ async function handleGetTopPools(n, env) {
   const pools = await fetchAllPools(env);
   const topPools = pools.slice(0, count);
 
-  return jsonResponse({
-    success: true,
-    data: {
+  return successResponse(
+    {
       pools: topPools,
       count: topPools.length,
-      sorted_by: 'trade_volume_24h',
     },
-    timestamp: new Date().toISOString(),
-  });
+    {
+      requested: n,
+      sorted_by: 'trade_volume_24h',
+      max_limit: CONFIG.MAX_TOP_N,
+    }
+  );
 }
 
 async function handleSearchPools(query, env) {
@@ -292,15 +382,16 @@ async function handleSearchPools(query, env) {
     p.token1.symbol.toUpperCase().includes(q)
   );
 
-  return jsonResponse({
-    success: true,
-    data: {
+  return successResponse(
+    {
       pools: results,
       count: results.length,
-      query,
     },
-    timestamp: new Date().toISOString(),
-  });
+    {
+      query,
+      search_in: ['pair', 'token0', 'token1'],
+    }
+  );
 }
 
 async function handleHealth(env) {
@@ -314,16 +405,18 @@ async function handleHealth(env) {
     }
   }
 
-  return jsonResponse({
-    success: true,
-    status: 'healthy',
-    version: '1.0.0',
-    cache: {
-      status: cacheStatus,
-      ttl: CONFIG.CACHE_TTL,
+  return successResponse(
+    {
+      status: 'healthy',
+      uptime: 'operational',
+      cache_status: cacheStatus,
     },
-    timestamp: new Date().toISOString(),
-  });
+    {
+      version: '1.0.0',
+      cache_ttl: CONFIG.CACHE_TTL,
+      rate_limit: CONFIG.RATE_LIMIT,
+    }
+  );
 }
 
 // ============================================
@@ -338,16 +431,22 @@ async function handleSubscribe(chatId, env) {
   const key = 'subscribers';
   const existing = await env.POOL_CACHE.get(key, 'json') || [];
 
-  if (!existing.includes(String(chatId))) {
+  const isNew = !existing.includes(String(chatId));
+  if (isNew) {
     existing.push(String(chatId));
     await env.POOL_CACHE.put(key, JSON.stringify(existing));
   }
 
-  return jsonResponse({
-    success: true,
-    message: `Chat ${chatId} subscribed`,
-    total: existing.length,
-  });
+  return successResponse(
+    {
+      chat_id: chatId,
+      subscribed: true,
+      is_new: isNew,
+    },
+    {
+      total_subscribers: existing.length,
+    }
+  );
 }
 
 async function handleUnsubscribe(chatId, env) {
@@ -360,19 +459,29 @@ async function handleUnsubscribe(chatId, env) {
   const updated = existing.filter(id => id !== String(chatId));
   await env.POOL_CACHE.put(key, JSON.stringify(updated));
 
-  return jsonResponse({
-    success: true,
-    message: `Chat ${chatId} unsubscribed`,
-    total: updated.length,
-  });
+  return successResponse(
+    {
+      chat_id: chatId,
+      subscribed: false,
+    },
+    {
+      total_subscribers: updated.length,
+      removed: existing.length > updated.length,
+    }
+  );
 }
 
 async function handleGetSubscribers(env) {
   const subscribers = await env.POOL_CACHE.get('subscribers', 'json') || [];
-  return jsonResponse({
-    success: true,
-    data: { subscribers, count: subscribers.length },
-  });
+  return successResponse(
+    {
+      subscribers,
+      count: subscribers.length,
+    },
+    {
+      storage: 'kv',
+    }
+  );
 }
 
 async function handleGetTrending(env) {
@@ -383,15 +492,16 @@ async function handleGetTrending(env) {
     .sort((a, b) => b.daily_yield - a.daily_yield)
     .slice(0, 10);
 
-  return jsonResponse({
-    success: true,
-    data: {
+  return successResponse(
+    {
       pools: trending,
       count: trending.length,
-      sorted_by: 'daily_yield',
     },
-    timestamp: new Date().toISOString(),
-  });
+    {
+      sorted_by: 'daily_yield',
+      description: 'Top pools by 24h yield percentage',
+    }
+  );
 }
 
 // ============================================

@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(copy:*)",
+      "Bash(npm init:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx wrangler:*)",
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(node -e \"\nrequire\\(''dotenv''\\).config\\(\\);\nfetch\\(''https://api.telegram.org/bot'' + process.env.BOT_TOKEN + ''/deleteWebhook?drop_pending_updates=true''\\)\n  .then\\(r => r.json\\(\\)\\)\n  .then\\(d => { console.log\\(JSON.stringify\\(d\\)\\); process.exit\\(0\\); }\\)\n  .catch\\(e => { console.error\\(e.message\\); process.exit\\(1\\); }\\);\n\")",
+      "Bash(node -e:*)",
+      "Bash(railway:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npm test:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}

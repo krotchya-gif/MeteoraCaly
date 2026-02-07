@@ -8,6 +8,14 @@
     "deploy": "wrangler deploy",
     "tail": "wrangler tail"
   },
-  "keywords": ["meteora", "dlmm", "solana", "defi"],
-  "license": "MIT"
+  "keywords": [
+    "meteora",
+    "dlmm",
+    "solana",
+    "defi"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^4.63.0"
+  }
 }
