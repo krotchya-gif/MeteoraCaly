@@ -205,17 +205,29 @@ async function fetchMeteoraPoolsRaw() {
   const dammRaw = await fetchDAMMPools();
   await delay(CONFIG.DAMM_DELAY_MS);
 
-  // Tag pools with type before merging
-  const dlmm = dlmmRaw.map(p => ({ ...p, pool_type: 'DLMM' }));
-  const damm = dammRaw.map(p => ({ ...p, pool_type: 'DAMM' }));
+  // Tag pools with type before merging (remove existing type field to avoid conflicts)
+  const dlmm = dlmmRaw.map(p => { const { type, ...rest } = p; return { ...rest, pool_type: 'DLMM' }; });
+  const damm = dammRaw.map(p => { const { type, ...rest } = p; return { ...rest, pool_type: 'DAMM' }; });
 
   // Merge DLMM (60%) and DAMM (40%) pools
   return smartMerge(dlmm, damm);
 }
 
 function transformPool(pool, poolType = null) {
-  // Auto-detect pool type if not specified
-  const type = poolType || (pool.pool_type === 'DAMM' || pool.isDamm ? 'DAMM' : 'DLMM');
+  // Determine type by checking pool properties (DAMM pools don't have bin_step)
+  let detectedType;
+  if (poolType) {
+    detectedType = poolType;
+  } else if (pool.pool_address && !pool.address) {
+    // DAMM pools use pool_address instead of address
+    detectedType = 'DAMM';
+  } else if (pool.isDamm || pool.pool_type === 0) {
+    // DAMM V2 specific check
+    detectedType = 'DAMM';
+  } else {
+    // Default to DLMM
+    detectedType = 'DLMM';
+  }
 
   const tvl = parseFloat(pool.liquidity || pool.tvl || 0);
   const volume24h = parseFloat(pool.trade_volume_24h || pool.volume_24h || 0);
@@ -229,10 +241,10 @@ function transformPool(pool, poolType = null) {
   const reserveXNorm = reserveX / Math.pow(10, decimalsX);
   const reserveYNorm = reserveY / Math.pow(10, decimalsY);
 
-  return {
+  // Create result object step by step to avoid any property conflicts
+  const result = {
     id: pool.address || pool.pool_address,
     pair: pool.name || pool.pool_name || 'UNKNOWN',
-    type,
     tvl: parseFloat(tvl.toFixed(2)),
     volume_24h: parseFloat(volume24h.toFixed(2)),
     fees_24h: parseFloat(fees24h.toFixed(2)),
@@ -258,25 +270,49 @@ function transformPool(pool, poolType = null) {
       reserve: reserveYNorm,
       price_usd: reserveYNorm > 0 ? (tvl / 2) / reserveYNorm : 0,
     },
-    pool_url: type === 'DAMM'
+    pool_url: detectedType === 'DAMM'
       ? `https://app.meteora.ag/pools/${pool.address || pool.pool_address}`
       : `https://app.meteora.ag/dlmm/${pool.address}`,
     is_active: tvl > CONFIG.MIN_TVL,
     last_updated: new Date().toISOString(),
   };
+
+  // Add type field with the detected type
+  result.type = detectedType;
+
+  return result;
 }
 
 async function fetchAllPools(env) {
-  const cached = await getCached('all_pools_v2', env);
+  const cached = await getCached('all_pools_v10', env);
   if (cached) return cached;
 
-  const rawPools = await fetchMeteoraPoolsRaw();
-  const pools = rawPools
-    .map(transformPool)
-    .filter(p => p.is_active)
-    .sort((a, b) => b.volume_24h - a.volume_24h);
+  // Fetch DLMM and DAMM separately
+  const dlmmRaw = await fetchDLMMPage('feetvlratio', 200);
+  await delay(CONFIG.DLMM_DELAY_MS);
 
-  await setCache('all_pools_v2', pools, env);
+  const dammRaw = await fetchDAMMPools();
+  await delay(CONFIG.DAMM_DELAY_MS);
+
+  // Transform with explicit type parameter
+  const dlmmPools = dlmmRaw
+    .map(p => transformPool(p, 'DLMM'))
+    .filter(p => p.is_active);
+
+  const dammPools = dammRaw
+    .map(p => transformPool(p, 'DAMM'))
+    .filter(p => p.is_active);
+
+  // Merge and limit to 250 total (60% DLMM + 40% DAMM)
+  const dlmmCount = Math.min(dlmmPools.length, 150);
+  const dammCount = Math.min(dammPools.length, 100);
+
+  const pools = [
+    ...dlmmPools.slice(0, dlmmCount),
+    ...dammPools.slice(0, dammCount),
+  ].sort((a, b) => b.volume_24h - a.volume_24h);
+
+  await setCache('all_pools_v10', pools, env);
   return pools;
 }
 
