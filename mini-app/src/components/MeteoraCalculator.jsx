@@ -453,8 +453,8 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
               ))}
             </div>
 
-            {/* Load More */}
-            {!loading && hasMore && !searchTerm && filterType === 'ALL' && (
+            {/* Load More - works for all filter types now */}
+            {!loading && hasMore && !searchTerm && (
               <button
                 onClick={onLoadMore}
                 disabled={loadingMore}
@@ -466,7 +466,7 @@ export default function MeteoraCalculator({ pools = POOLS_DATA, loading = false,
                     Memuat...
                   </span>
                 ) : (
-                  `Muat 25 pool lagi (${pools.length} ditampilkan)`
+                  `Muat 25 pool lagi (${filteredPools.length}/${pools.length} ditampilkan)`
                 )}
               </button>
             )}

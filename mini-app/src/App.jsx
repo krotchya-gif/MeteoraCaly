@@ -5,7 +5,7 @@ import useHistory from './hooks/useHistory';
 import useToast, { getErrorMessage, retryWithBackoff } from './hooks/useToast';
 import { ToastContainer } from './components/Toast';
 import { SkeletonPoolList } from './components/Skeleton';
-import { getCached, setCache, fetchWithCache } from './utils/cache';
+import { getCached, setCache, fetchWithCache, removeCache } from './utils/cache';
 import { getPoolsWithFallback, validateAPIResponse, extractPools } from './utils/validation';
 
 // Direct import for small/critical components
@@ -179,8 +179,8 @@ function App() {
   const loadMore = useCallback(() => {
     const nextLimit = Math.min(poolLimit + 25, 100);
 
-    // Clear cache untuk fresh fetch saat load more
-    localStorage.removeItem(CACHE_KEY_POOLS);
+    // Clear cache untuk fresh fetch saat load more (FIXED: use removeCache)
+    removeCache(CACHE_KEY_POOLS);
 
     // Fetch dengan toast notification
     fetchPools(nextLimit, true, true);
@@ -192,8 +192,8 @@ function App() {
 
     setIsRefreshing(true);
 
-    // Clear cache to force fresh fetch
-    localStorage.removeItem(CACHE_KEY_POOLS);
+    // Clear cache to force fresh fetch (FIXED: use removeCache)
+    removeCache(CACHE_KEY_POOLS);
 
     // Fetch fresh data (showToast = true, but only shows for non-cached)
     fetchPools(poolLimit, false, true);
