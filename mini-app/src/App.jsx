@@ -18,8 +18,8 @@ const LearnView = lazy(() => import('./components/LearnView'));
 
 const API_URL = 'https://meteora-calculator-api.infocyber001.workers.dev';
 const CACHE_KEY_POOLS = 'pools_data';
-const CACHE_TTL = 300000; // 5 minutes (sync with backend for fresh data)
-const AUTO_REFRESH_INTERVAL = 300000; // 5 minutes
+const CACHE_TTL = 120000; // 2 minutes (sync with backend - ultra fresh with 1M writes/month!)
+const AUTO_REFRESH_INTERVAL = 120000; // 2 minutes
 
 function TabFallback() {
   return (
@@ -104,7 +104,8 @@ function App() {
             setPools(validPools.slice(0, limit));
             setLastUpdated(new Date(cached.timestamp));
             setPoolLimit(limit);
-            setHasMore(limit < 100 && validPools.length >= limit);
+            // hasMore: true if not reached max (100) and have enough data
+            setHasMore(limit < 100 && validPools.length > limit);
             loadingState(false);
             return;
           }
@@ -147,6 +148,7 @@ function App() {
         setPools(validPools);
         setLastUpdated(new Date(data.timestamp || Date.now()));
         setPoolLimit(limit);
+        // hasMore: true if not reached max (100) and API can provide more
         setHasMore(limit < 100 && validPools.length >= limit);
 
         // Only show toast for fresh data (not cached)
@@ -357,12 +359,7 @@ function App() {
         )}
       </Suspense>
 
-      {/* Auto-refresh indicator */}
-      {autoRefreshEnabled && lastUpdated && (
-        <div className="fixed bottom-4 left-4 text-xs dark:text-gray-400 text-gray-600 bg-black bg-opacity-50 px-3 py-1.5 rounded-full">
-          🔄 Last updated: {new Date(lastUpdated).toLocaleTimeString()}
-        </div>
-      )}
+      {/* Auto-refresh indicator - removed: was blocking UI on mobile */}
     </div>
   );
 }

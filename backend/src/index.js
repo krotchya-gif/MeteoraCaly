@@ -1,12 +1,12 @@
 // ============================================
 // METEORA CALCULATOR API - Cloudflare Worker
-// Optimized for KV free tier (1000 puts/day)
+// Optimized for 1M writes/month plan (33k writes/day)
 // ============================================
 
 const CONFIG = {
   METEORA_API: 'https://dlmm-api.meteora.ag',
   JUPITER_PRICE_API: 'https://api.jup.ag/price/v2',
-  CACHE_TTL: 300,           // 5 minutes (288 writes/day = 28% of 1000 limit, data lebih fresh!)
+  CACHE_TTL: 120,           // 2 minutes (720 writes/day = 2% of 33k limit - ultra fresh!)
   MIN_TVL: 500,
   FETCH_LIMIT: 250,
   MAX_TOP_N: 500,
