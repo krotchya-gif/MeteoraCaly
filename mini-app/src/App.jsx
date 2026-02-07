@@ -179,11 +179,11 @@ function App() {
   const loadMore = useCallback(() => {
     const nextLimit = Math.min(poolLimit + 25, 100);
 
-    // Clear cache untuk fresh fetch saat load more (FIXED: use removeCache)
+    // Clear cache untuk fresh fetch saat load more
     removeCache(CACHE_KEY_POOLS);
 
-    // Fetch dengan toast notification
-    fetchPools(nextLimit, true, true);
+    // Fetch without toast (loading state visible in button)
+    fetchPools(nextLimit, true, false);
   }, [poolLimit, fetchPools]);
 
   const handleRefresh = useCallback(() => {
@@ -192,11 +192,11 @@ function App() {
 
     setIsRefreshing(true);
 
-    // Clear cache to force fresh fetch (FIXED: use removeCache)
+    // Clear cache to force fresh fetch
     removeCache(CACHE_KEY_POOLS);
 
-    // Fetch fresh data (showToast = true, but only shows for non-cached)
-    fetchPools(poolLimit, false, true);
+    // Fetch fresh data without toast (loading state visible in UI)
+    fetchPools(poolLimit, false, false);
   }, [poolLimit, fetchPools, isRefreshing]);
 
   // Initial load
@@ -278,16 +278,6 @@ function App() {
               </button>
             );
           })}
-
-          {/* Refresh button */}
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="p-2.5 mx-1 rounded-lg dark:text-gray-300 text-gray-600 dark:hover:bg-slate-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
-            title="Refresh data"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </button>
 
           {/* Theme toggle */}
           <button

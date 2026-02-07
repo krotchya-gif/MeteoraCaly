@@ -267,7 +267,7 @@ function transformPool(pool, poolType = null) {
 }
 
 async function fetchAllPools(env) {
-  const cached = await getCached('all_pools', env);
+  const cached = await getCached('all_pools_v2', env);
   if (cached) return cached;
 
   const rawPools = await fetchMeteoraPoolsRaw();
@@ -276,7 +276,7 @@ async function fetchAllPools(env) {
     .filter(p => p.is_active)
     .sort((a, b) => b.volume_24h - a.volume_24h);
 
-  await setCache('all_pools', pools, env);
+  await setCache('all_pools_v2', pools, env);
   return pools;
 }
 
