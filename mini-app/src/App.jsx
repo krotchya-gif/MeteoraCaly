@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { Calculator, BarChart3, LineChart, Clock, BookOpen, Sun, Moon } from 'lucide-react';
 import MeteoraCalculator from './components/MeteoraCalculator';
 import useHistory from './hooks/useHistory';
@@ -199,9 +199,13 @@ function App() {
     fetchPools(poolLimit, false, false);
   }, [poolLimit, fetchPools, isRefreshing]);
 
-  // Initial load
+  // Initial load - only run once on mount
+  const initialLoadDone = useRef(false);
   useEffect(() => {
-    fetchPools(25);
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      fetchPools(25);
+    }
   }, [fetchPools]);
 
   // Auto-refresh every 3 minutes

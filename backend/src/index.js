@@ -8,7 +8,7 @@ const CONFIG = {
   DAMM_API: 'https://dammv2-api.meteora.ag',      // DAMM V2: 10 RPS
   JUPITER_PRICE_API: 'https://api.jup.ag/price/v2',
   CACHE_TTL: 120,           // 2 minutes (720 writes/day = 2% of 33k limit - ultra fresh!)
-  MIN_TVL: 500,
+  MIN_TVL: 10,
   FETCH_LIMIT: 250,
   MAX_TOP_N: 500,
   REQUEST_TIMEOUT: 25000,
@@ -284,12 +284,15 @@ function transformPool(pool, poolType = null) {
 }
 
 async function fetchAllPools(env) {
-  const cached = await getCached('all_pools_v10', env);
+  const cached = await getCached('all_pools_v13', env);
   if (cached) return cached;
 
-  // Fetch DLMM and DAMM separately
-  const dlmmRaw = await fetchDLMMPage('feetvlratio', 200);
+  // Fetch DLMM pages (200 per page, 2 pages = 400 raw pools)
+  const dlmmPage0 = await fetchDLMMPage('feetvlratio', 200, 0);
   await delay(CONFIG.DLMM_DELAY_MS);
+  const dlmmPage1 = await fetchDLMMPage('feetvlratio', 200, 1);
+  await delay(CONFIG.DLMM_DELAY_MS);
+  const dlmmRaw = [...dlmmPage0, ...dlmmPage1];
 
   const dammRaw = await fetchDAMMPools();
   await delay(CONFIG.DAMM_DELAY_MS);
@@ -312,7 +315,7 @@ async function fetchAllPools(env) {
     ...dammPools.slice(0, dammCount),
   ].sort((a, b) => b.volume_24h - a.volume_24h);
 
-  await setCache('all_pools_v10', pools, env);
+  await setCache('all_pools_v13', pools, env);
   return pools;
 }
 
