@@ -14,7 +14,7 @@
 - 🤖 **Telegram Bot:** Running on Railway
 - 📦 **GitHub:** https://github.com/krotchya-gif/MeteoraCaly
 
-**Version:** 1.0.1-kv-optimized | **Status:** ✅ 100% Complete
+**Version:** 1.0.2-cache-optimized | **Status:** ✅ 100% Complete
 
 ---
 
@@ -401,12 +401,18 @@ We welcome contributions! Please follow these steps:
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
-### Latest Updates (v1.0.1 - Feb 7, 2026)
+### Latest Updates (v1.0.2 - Feb 8, 2026)
+- ✅ Optimized cache TTL from 15 min → 5 min (3x fresher data)
+- ✅ KV usage: 288 writes/day (28% of limit, was 10%)
+- ✅ Fixed refresh button toast spam issue
+- ✅ Auto-clear cache on refresh & load more
+- ✅ Improved UX: only show toast for fresh data
+
+### Previous Updates (v1.0.1 - Feb 7, 2026)
 - ✅ Cloudflare Workers KV optimization (1000 writes/day compliance)
 - ✅ Meteora API rate limit compliance (30 RPS)
 - ✅ Fixed invalid API sort keys (volume, feetvlratio, volume12h, tvl)
 - ✅ Removed AbortController for Workers compatibility
-- ✅ Synchronized frontend/backend cache (15 min TTL)
 - ✅ Smart merge: 250 pools from 4 sources
 - ✅ All endpoints operational
 
@@ -414,16 +420,12 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## 🐛 Known Issues & Solutions
 
-### Issue: Load More not working
-**Solution:** Clear browser localStorage
-```javascript
-// Browser console (F12)
-localStorage.clear();
-location.reload();
-```
+### Issue: Multiple toast notifications on refresh
+**Status:** ✅ Fixed in v1.0.2
+Cache is now auto-cleared on refresh, and toasts only show for fresh data.
 
 ### Issue: Stale pool data
-**Solution:** Click refresh button or wait 15 minutes for auto-refresh
+**Solution:** Click refresh button (auto-clears cache) or wait 5 minutes for auto-refresh
 
 See [CLOUDFLARE-FIX-SUMMARY.md](CLOUDFLARE-FIX-SUMMARY.md) for detailed troubleshooting.
 
@@ -488,8 +490,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Response Time (cached):** ~100-200ms
 - **Response Time (fresh):** ~1.5-2s
 - **Pools Available:** ~250 unique pools
-- **Cache TTL:** 15 minutes
-- **KV Usage:** ~100 writes/day (10% of 1000 limit) ✅
+- **Cache TTL:** 5 minutes (optimized for freshness)
+- **Auto-refresh:** Every 5 minutes
+- **KV Usage:** ~288 writes/day (28% of 1000 limit) ✅
 
 ---
 
