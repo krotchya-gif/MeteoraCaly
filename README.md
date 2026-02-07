@@ -14,7 +14,7 @@
 - 🤖 **Telegram Bot:** Running on Railway
 - 📦 **GitHub:** https://github.com/krotchya-gif/MeteoraCaly
 
-**Version:** 1.0.2-cache-optimized | **Status:** ✅ 100% Complete
+**Version:** 1.0.3-type-field-fix | **Status:** ✅ 100% Production Ready
 
 ---
 
@@ -401,12 +401,20 @@ We welcome contributions! Please follow these steps:
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
-### Latest Updates (v1.0.2 - Feb 8, 2026)
-- ✅ Optimized cache TTL from 15 min → 5 min (3x fresher data)
-- ✅ KV usage: 288 writes/day (28% of limit, was 10%)
+### Latest Updates (v1.0.3 - Feb 8, 2026)
+- ✅ **CRITICAL FIX:** Type field now returns string 'DLMM'/'DAMM' (was returning numbers)
+- ✅ DLMM filter working (150 pools displayed)
+- ✅ DAMM filter working (100 pools displayed)
+- ✅ Load more button functional for all filters
+- ✅ Removed toast spam on manual refresh
+- ✅ Removed unwanted refresh button from header
+- ✅ Organized all documentation to docs/ folder
+
+### Previous Updates (v1.0.2 - Feb 8, 2026)
+- ✅ Optimized cache TTL from 15 min → 2 min (ultra fresh data)
+- ✅ KV usage: 720 writes/day (2% of 33k limit)
 - ✅ Fixed refresh button toast spam issue
 - ✅ Auto-clear cache on refresh & load more
-- ✅ Improved UX: only show toast for fresh data
 
 ### Previous Updates (v1.0.1 - Feb 7, 2026)
 - ✅ Cloudflare Workers KV optimization (1000 writes/day compliance)
@@ -478,9 +486,18 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Documentation
 
-- 📘 [CLOUDFLARE-FIX-SUMMARY.md](CLOUDFLARE-FIX-SUMMARY.md) - Complete fix documentation
-- 📗 [PROGRESS.md](PROGRESS.md) - Project progress tracker
-- 📙 [DEPLOY-NOW.md](DEPLOY-NOW.md) - Deployment guide
+**All documentation is organized in the [docs/](docs/) folder.**
+
+### Quick Links
+- 🤖 [CLAUDE.md](docs/CLAUDE.md) - AI assistant guide (Architecture, conventions, troubleshooting)
+- 📘 [CLOUDFLARE-FIX-SUMMARY.md](docs/CLOUDFLARE-FIX-SUMMARY.md) - Complete fix history
+- 📋 [DOCUMENTATION-SUMMARY.md](docs/DOCUMENTATION-SUMMARY.md) - Quick index to all docs
+- 🚀 [SETUP-GUIDE.md](docs/SETUP-GUIDE.md) - Installation & setup
+- 💻 [DEVELOPMENT-GUIDE.md](docs/DEVELOPMENT-GUIDE.md) - Development workflow
+- 🔌 [API.md](docs/API.md) - API documentation
+- 📦 [DEPLOYMENT.md](docs/DEPLOYMENT.md) - Deployment guide
+
+**See [docs/README.md](docs/README.md) for complete documentation index.**
 
 ---
 
@@ -490,12 +507,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Response Time (cached):** ~100-200ms
 - **Response Time (fresh):** ~1.5-2s
 - **Pools Available:** ~250 unique pools
-- **Cache TTL:** 5 minutes (optimized for freshness)
-- **Auto-refresh:** Every 5 minutes
-- **KV Usage:** ~288 writes/day (28% of 1000 limit) ✅
+- **Cache TTL:** 2 minutes (ultra fresh data)
+- **Auto-refresh:** Every 2 minutes
+- **KV Usage:** ~720 writes/day (2% of 33k limit) ✅
 
 ---
 
 **Built with ❤️ for the Solana DeFi community**
 
-*Last updated: February 7, 2026*
+*Last updated: February 8, 2026*
