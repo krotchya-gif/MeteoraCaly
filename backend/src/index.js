@@ -4,21 +4,21 @@
 // ============================================
 
 const CONFIG = {
-  METEORA_API: 'https://dlmm-api.meteora.ag',
+  DLMM_API: 'https://dlmm-api.meteora.ag',        // DLMM: 30 RPS
+  DAMM_API: 'https://dammv2-api.meteora.ag',      // DAMM V2: 10 RPS
   JUPITER_PRICE_API: 'https://api.jup.ag/price/v2',
   CACHE_TTL: 120,           // 2 minutes (720 writes/day = 2% of 33k limit - ultra fresh!)
   MIN_TVL: 500,
   FETCH_LIMIT: 250,
   MAX_TOP_N: 500,
   REQUEST_TIMEOUT: 25000,
-  // Meteora API: 30 RPS limit
-  FETCH_DELAY_MS: 100,      // 100ms between requests = max 10 RPS (safe margin)
-  // Opsi 3: Smart merge ratios
+  // Rate limits
+  DLMM_DELAY_MS: 100,       // 100ms = 10 RPS (safe margin for 30 RPS limit)
+  DAMM_DELAY_MS: 100,       // 100ms = 10 RPS (matches 10 RPS limit)
+  // Smart merge ratios
   MERGE_RATIO: {
-    VOLUME: 0.35,     // 35% top volume pools (24h)
-    YIELD: 0.25,      // 25% top yield pools (feetvlratio)
-    TRENDING: 0.20,   // 20% trending by 12h volume
-    HIGH_TVL: 0.20,   // 20% highest TVL pools
+    DLMM: 0.60,       // 60% DLMM pools (more variety)
+    DAMM: 0.40,       // 40% DAMM pools
   },
 };
 
@@ -126,28 +126,42 @@ async function setCache(key, data, env) {
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function fetchMeteoraPage(sortKey, limit, page = 0) {
-  // Simple fetch without AbortController (Workers compatible)
-  const url = `${CONFIG.METEORA_API}/pair/all_with_pagination?page=${page}&limit=${limit}&sort_key=${sortKey}&order_by=desc`;
+// Fetch DLMM pools (30 RPS limit)
+async function fetchDLMMPage(sortKey, limit, page = 0) {
+  const url = `${CONFIG.DLMM_API}/pair/all_with_pagination?page=${page}&limit=${limit}&sort_key=${sortKey}&order_by=desc`;
   const response = await fetch(url, {
     headers: { 'User-Agent': 'Meteora-Calculator-API/1.0' },
   });
 
   if (!response.ok) {
-    throw new Error(`Meteora API returned ${response.status}`);
+    throw new Error(`DLMM API returned ${response.status}`);
   }
 
   const raw = await response.json();
   return raw.pairs || raw.data || (Array.isArray(raw) ? raw : []);
 }
 
-function smartMerge(byVolume, byYield, byTrending, byHighTVL) {
+// Fetch DAMM V2 pools (10 RPS limit)
+async function fetchDAMMPools() {
+  const url = `${CONFIG.DAMM_API}/pools`;
+  const response = await fetch(url, {
+    headers: { 'User-Agent': 'Meteora-Calculator-API/1.0' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`DAMM API returned ${response.status}`);
+  }
+
+  const raw = await response.json();
+  // DAMM API returns array of pools directly
+  return Array.isArray(raw) ? raw : (raw.pools || raw.data || []);
+}
+
+function smartMerge(dlmmPools, dammPools) {
   const TARGET_COUNT = 250;
   const counts = {
-    volume: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.VOLUME),
-    yield: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.YIELD),
-    trending: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.TRENDING),
-    highTVL: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.HIGH_TVL),
+    dlmm: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.DLMM),  // 60% = 150 pools
+    damm: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.DAMM),  // 40% = 100 pools
   };
 
   const seen = new Set();
@@ -166,14 +180,16 @@ function smartMerge(byVolume, byYield, byTrending, byHighTVL) {
     return added;
   };
 
-  addPools(byVolume, counts.volume);
-  addPools(byYield, counts.yield);
-  addPools(byTrending, counts.trending);
-  addPools(byHighTVL, counts.highTVL);
+  // Add DLMM pools (150)
+  addPools(dlmmPools, counts.dlmm);
 
+  // Add DAMM pools (100)
+  addPools(dammPools, counts.damm);
+
+  // Fill remaining slots with any pools
   const remaining = TARGET_COUNT - merged.length;
   if (remaining > 0) {
-    const all = [...byVolume, ...byYield, ...byTrending, ...byHighTVL];
+    const all = [...dlmmPools, ...dammPools];
     addPools(all, remaining);
   }
 
@@ -181,40 +197,42 @@ function smartMerge(byVolume, byYield, byTrending, byHighTVL) {
 }
 
 async function fetchMeteoraPoolsRaw() {
-  // Sequential fetch with delays to respect Meteora 30 RPS limit
-  // Using valid sort keys: volume, feetvlratio, volume12h, tvl
+  // Fetch DLMM pools (30 RPS limit) - prioritize by yield for better selection
+  const dlmmRaw = await fetchDLMMPage('feetvlratio', 200);
+  await delay(CONFIG.DLMM_DELAY_MS);
 
-  const byVolume = await fetchMeteoraPage('volume', 150);
-  await delay(CONFIG.FETCH_DELAY_MS);
+  // Fetch DAMM V2 pools (10 RPS limit)
+  const dammRaw = await fetchDAMMPools();
+  await delay(CONFIG.DAMM_DELAY_MS);
 
-  const byYield = await fetchMeteoraPage('feetvlratio', 150);
-  await delay(CONFIG.FETCH_DELAY_MS);
+  // Tag pools with type before merging
+  const dlmm = dlmmRaw.map(p => ({ ...p, pool_type: 'DLMM' }));
+  const damm = dammRaw.map(p => ({ ...p, pool_type: 'DAMM' }));
 
-  const byTrending = await fetchMeteoraPage('volume12h', 100);
-  await delay(CONFIG.FETCH_DELAY_MS);
-
-  const byHighTVL = await fetchMeteoraPage('tvl', 100);
-
-  return smartMerge(byVolume, byYield, byTrending, byHighTVL);
+  // Merge DLMM (60%) and DAMM (40%) pools
+  return smartMerge(dlmm, damm);
 }
 
-function transformPool(pool) {
-  const tvl = parseFloat(pool.liquidity || 0);
-  const volume24h = parseFloat(pool.trade_volume_24h || 0);
-  const fees24h = parseFloat(pool.fees_24h || 0);
+function transformPool(pool, poolType = null) {
+  // Auto-detect pool type if not specified
+  const type = poolType || (pool.pool_type === 'DAMM' || pool.isDamm ? 'DAMM' : 'DLMM');
+
+  const tvl = parseFloat(pool.liquidity || pool.tvl || 0);
+  const volume24h = parseFloat(pool.trade_volume_24h || pool.volume_24h || 0);
+  const fees24h = parseFloat(pool.fees_24h || pool.fee_24h || 0);
   const dailyYield = tvl > 0 ? (fees24h / tvl) * 100 : 0;
 
-  const reserveX = parseFloat(pool.reserve_x_amount || 0);
-  const reserveY = parseFloat(pool.reserve_y_amount || 0);
-  const decimalsX = parseInt(pool.decimals_x || 9);
-  const decimalsY = parseInt(pool.decimals_y || 6);
+  const reserveX = parseFloat(pool.reserve_x_amount || pool.reserve_x || 0);
+  const reserveY = parseFloat(pool.reserve_y_amount || pool.reserve_y || 0);
+  const decimalsX = parseInt(pool.decimals_x || pool.token_x_decimals || 9);
+  const decimalsY = parseInt(pool.decimals_y || pool.token_y_decimals || 6);
   const reserveXNorm = reserveX / Math.pow(10, decimalsX);
   const reserveYNorm = reserveY / Math.pow(10, decimalsY);
 
   return {
-    id: pool.address,
-    pair: pool.name,
-    type: 'DLMM',
+    id: pool.address || pool.pool_address,
+    pair: pool.name || pool.pool_name || 'UNKNOWN',
+    type,
     tvl: parseFloat(tvl.toFixed(2)),
     volume_24h: parseFloat(volume24h.toFixed(2)),
     fees_24h: parseFloat(fees24h.toFixed(2)),
@@ -240,7 +258,9 @@ function transformPool(pool) {
       reserve: reserveYNorm,
       price_usd: reserveYNorm > 0 ? (tvl / 2) / reserveYNorm : 0,
     },
-    pool_url: `https://app.meteora.ag/dlmm/${pool.address}`,
+    pool_url: type === 'DAMM'
+      ? `https://app.meteora.ag/pools/${pool.address || pool.pool_address}`
+      : `https://app.meteora.ag/dlmm/${pool.address}`,
     is_active: tvl > CONFIG.MIN_TVL,
     last_updated: new Date().toISOString(),
   };
