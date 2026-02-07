@@ -18,8 +18,8 @@ const LearnView = lazy(() => import('./components/LearnView'));
 
 const API_URL = 'https://meteora-calculator-api.infocyber001.workers.dev';
 const CACHE_KEY_POOLS = 'pools_data';
-const CACHE_TTL = 900000; // 15 minutes (sync with backend)
-const AUTO_REFRESH_INTERVAL = 900000; // 15 minutes
+const CACHE_TTL = 300000; // 5 minutes (sync with backend for fresh data)
+const AUTO_REFRESH_INTERVAL = 300000; // 5 minutes
 
 function TabFallback() {
   return (
@@ -175,7 +175,12 @@ function App() {
 
   const loadMore = useCallback(() => {
     const nextLimit = Math.min(poolLimit + 25, 100);
-    fetchPools(nextLimit, true);
+
+    // Clear cache untuk fresh fetch saat load more
+    localStorage.removeItem(CACHE_KEY_POOLS);
+
+    // Fetch dengan toast notification
+    fetchPools(nextLimit, true, true);
   }, [poolLimit, fetchPools]);
 
   const handleRefresh = useCallback(() => {

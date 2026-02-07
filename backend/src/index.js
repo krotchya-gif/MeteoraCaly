@@ -6,7 +6,7 @@
 const CONFIG = {
   METEORA_API: 'https://dlmm-api.meteora.ag',
   JUPITER_PRICE_API: 'https://api.jup.ag/price/v2',
-  CACHE_TTL: 900,           // 15 minutes (reduced KV writes: ~96/day vs 480/day)
+  CACHE_TTL: 300,           // 5 minutes (288 writes/day = 28% of 1000 limit, data lebih fresh!)
   MIN_TVL: 500,
   FETCH_LIMIT: 250,
   MAX_TOP_N: 500,
