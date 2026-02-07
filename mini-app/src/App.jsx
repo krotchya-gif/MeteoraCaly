@@ -149,8 +149,9 @@ function App() {
         setPoolLimit(limit);
         setHasMore(limit < 100 && validPools.length >= limit);
 
-        if (showToast) {
-          toast.success(`✅ ${validPools.length} pools loaded${fromCache ? ' (cached)' : ''}`, {
+        // Only show toast for fresh data (not cached)
+        if (showToast && !fromCache) {
+          toast.success(`✅ ${validPools.length} pools loaded`, {
             duration: 2000,
           });
         }
@@ -184,9 +185,17 @@ function App() {
   }, [poolLimit, fetchPools]);
 
   const handleRefresh = useCallback(() => {
+    // Prevent multiple clicks
+    if (isRefreshing) return;
+
     setIsRefreshing(true);
+
+    // Clear cache to force fresh fetch
+    localStorage.removeItem(CACHE_KEY_POOLS);
+
+    // Fetch fresh data (showToast = true, but only shows for non-cached)
     fetchPools(poolLimit, false, true);
-  }, [poolLimit, fetchPools]);
+  }, [poolLimit, fetchPools, isRefreshing]);
 
   // Initial load
   useEffect(() => {
