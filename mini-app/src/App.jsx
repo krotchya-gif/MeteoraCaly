@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
-import { Calculator, BarChart3, LineChart, Clock, BookOpen, Sun, Moon, RefreshCw } from 'lucide-react';
-import MeteoraCalculator, { POOLS_DATA } from './components/MeteoraCalculator';
+import { Calculator, BarChart3, LineChart, Clock, BookOpen, Sun, Moon } from 'lucide-react';
+import MeteoraCalculator from './components/MeteoraCalculator';
 import useHistory from './hooks/useHistory';
 import useToast, { getErrorMessage, retryWithBackoff } from './hooks/useToast';
 import { ToastContainer } from './components/Toast';
 import { SkeletonPoolList } from './components/Skeleton';
-import { getCached, setCache, fetchWithCache, removeCache } from './utils/cache';
+import { getCached, fetchWithCache, removeCache } from './utils/cache';
 import { getPoolsWithFallback, validateAPIResponse, extractPools } from './utils/validation';
 
 // Direct import for small/critical components
@@ -104,8 +104,8 @@ function App() {
             setPools(validPools.slice(0, limit));
             setLastUpdated(new Date(cached.timestamp));
             setPoolLimit(limit);
-            // hasMore: true if not reached max (100) and have enough data
-            setHasMore(limit < 100 && validPools.length > limit);
+            // hasMore: true if not reached max (100) and cache has enough data
+            setHasMore(limit < 100 && validPools.length >= limit);
             loadingState(false);
             return;
           }
