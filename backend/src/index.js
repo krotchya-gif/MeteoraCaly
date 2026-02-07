@@ -233,14 +233,25 @@ function smartMerge(byVolume, byYield, byTrending, byNewest) {
   return merged;
 }
 
+/**
+ * Delay helper to respect Meteora API rate limit (30 RPS)
+ */
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function fetchMeteoraPoolsRaw() {
   // Opsi 3: Fetch from 4 different sort criteria for maximum diversity
-  const [byVolume, byYield, byTrending, byNewest] = await Promise.all([
-    fetchMeteoraPage('volume', 150),         // Top 150 by 24h volume
-    fetchMeteoraPage('feetvlratio', 150),    // Top 150 by yield (fees/TVL)
-    fetchMeteoraPage('trade_volume_24h', 100), // Trending by volume activity
-    fetchMeteoraPage('updated_at', 100),     // 100 newest/recently updated pools
-  ]);
+  // Sequential fetch with delays to respect 30 RPS rate limit
+
+  const byVolume = await fetchMeteoraPage('volume', 150);
+  await delay(100); // 100ms between requests = max 10 RPS
+
+  const byYield = await fetchMeteoraPage('feetvlratio', 150);
+  await delay(100);
+
+  const byTrending = await fetchMeteoraPage('trade_volume_24h', 100);
+  await delay(100);
+
+  const byNewest = await fetchMeteoraPage('updated_at', 100);
 
   // Smart merge with weighted distribution
   return smartMerge(byVolume, byYield, byTrending, byNewest);
