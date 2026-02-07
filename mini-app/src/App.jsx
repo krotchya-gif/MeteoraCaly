@@ -18,8 +18,8 @@ const LearnView = lazy(() => import('./components/LearnView'));
 
 const API_URL = 'https://meteora-calculator-api.infocyber001.workers.dev';
 const CACHE_KEY_POOLS = 'pools_data';
-const CACHE_TTL = 180000; // 3 minutes
-const AUTO_REFRESH_INTERVAL = 180000; // 3 minutes
+const CACHE_TTL = 900000; // 15 minutes (sync with backend)
+const AUTO_REFRESH_INTERVAL = 900000; // 15 minutes
 
 function TabFallback() {
   return (
