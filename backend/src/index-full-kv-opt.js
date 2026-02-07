@@ -15,10 +15,10 @@ const CONFIG = {
   FETCH_DELAY_MS: 100,      // 100ms between requests = max 10 RPS (safe margin)
   // Opsi 3: Smart merge ratios
   MERGE_RATIO: {
-    VOLUME: 0.35,     // 35% top volume pools (24h)
-    YIELD: 0.25,      // 25% top yield pools (feetvlratio)
-    TRENDING: 0.20,   // 20% trending by 12h volume
-    HIGH_TVL: 0.20,   // 20% highest TVL pools
+    VOLUME: 0.35,     // 35% top volume pools
+    YIELD: 0.25,      // 25% top yield pools
+    TRENDING: 0.20,   // 20% trending by daily yield
+    NEWEST: 0.20,     // 20% newest pools
   },
 };
 
@@ -127,27 +127,34 @@ async function setCache(key, data, env) {
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchMeteoraPage(sortKey, limit, page = 0) {
-  // Simple fetch without AbortController (Workers compatible)
-  const url = `${CONFIG.METEORA_API}/pair/all_with_pagination?page=${page}&limit=${limit}&sort_key=${sortKey}&order_by=desc`;
-  const response = await fetch(url, {
-    headers: { 'User-Agent': 'Meteora-Calculator-API/1.0' },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
 
-  if (!response.ok) {
-    throw new Error(`Meteora API returned ${response.status}`);
+  try {
+    const url = `${CONFIG.METEORA_API}/pair/all_with_pagination?page=${page}&limit=${limit}&sort_key=${sortKey}&order_by=desc`;
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Meteora-Calculator-API/1.0' },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Meteora API returned ${response.status}`);
+    }
+
+    const raw = await response.json();
+    return raw.pairs || raw.data || (Array.isArray(raw) ? raw : []);
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const raw = await response.json();
-  return raw.pairs || raw.data || (Array.isArray(raw) ? raw : []);
 }
 
-function smartMerge(byVolume, byYield, byTrending, byHighTVL) {
+function smartMerge(byVolume, byYield, byTrending, byNewest) {
   const TARGET_COUNT = 250;
   const counts = {
     volume: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.VOLUME),
     yield: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.YIELD),
     trending: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.TRENDING),
-    highTVL: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.HIGH_TVL),
+    newest: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.NEWEST),
   };
 
   const seen = new Set();
@@ -169,11 +176,11 @@ function smartMerge(byVolume, byYield, byTrending, byHighTVL) {
   addPools(byVolume, counts.volume);
   addPools(byYield, counts.yield);
   addPools(byTrending, counts.trending);
-  addPools(byHighTVL, counts.highTVL);
+  addPools(byNewest, counts.newest);
 
   const remaining = TARGET_COUNT - merged.length;
   if (remaining > 0) {
-    const all = [...byVolume, ...byYield, ...byTrending, ...byHighTVL];
+    const all = [...byVolume, ...byYield, ...byTrending, ...byNewest];
     addPools(all, remaining);
   }
 
@@ -182,20 +189,18 @@ function smartMerge(byVolume, byYield, byTrending, byHighTVL) {
 
 async function fetchMeteoraPoolsRaw() {
   // Sequential fetch with delays to respect Meteora 30 RPS limit
-  // Using valid sort keys: volume, feetvlratio, volume12h, tvl
-
   const byVolume = await fetchMeteoraPage('volume', 150);
   await delay(CONFIG.FETCH_DELAY_MS);
 
   const byYield = await fetchMeteoraPage('feetvlratio', 150);
   await delay(CONFIG.FETCH_DELAY_MS);
 
-  const byTrending = await fetchMeteoraPage('volume12h', 100);
+  const byTrending = await fetchMeteoraPage('trade_volume_24h', 100);
   await delay(CONFIG.FETCH_DELAY_MS);
 
-  const byHighTVL = await fetchMeteoraPage('tvl', 100);
+  const byNewest = await fetchMeteoraPage('updated_at', 100);
 
-  return smartMerge(byVolume, byYield, byTrending, byHighTVL);
+  return smartMerge(byVolume, byYield, byTrending, byNewest);
 }
 
 function transformPool(pool) {
@@ -275,7 +280,7 @@ async function handleGetPools(env) {
     {
       last_updated: pools[0]?.last_updated || new Date().toISOString(),
       source: 'meteora_api',
-      merge_strategy: 'volume_yield_trending_tvl',
+      merge_strategy: 'volume_yield_trending_newest',
     }
   );
 }

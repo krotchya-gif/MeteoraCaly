@@ -18,7 +18,8 @@
       "Bash(railway:*)",
       "Bash(npx vitest:*)",
       "Bash(npm test:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(timeout 30 bash -c 'cd backend && npx wrangler dev --local --port 8788 > /tmp/dev.log 2>&1 & sleep 12 && curl -s http://localhost:8788/api/pools/top/3 | head -80')"
     ]
   }
 }

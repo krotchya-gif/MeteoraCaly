@@ -1,24 +1,23 @@
 // ============================================
 // METEORA CALCULATOR API - Cloudflare Worker
-// Optimized for KV free tier (1000 puts/day)
 // ============================================
 
 const CONFIG = {
   METEORA_API: 'https://dlmm-api.meteora.ag',
   JUPITER_PRICE_API: 'https://api.jup.ag/price/v2',
-  CACHE_TTL: 900,           // 15 minutes (reduced KV writes: ~96/day vs 480/day)
-  MIN_TVL: 500,
-  FETCH_LIMIT: 250,
-  MAX_TOP_N: 500,
+  CACHE_TTL: 180,           // 3 minutes in seconds (reduced for fresher data)
+  RATE_LIMIT: 100,          // requests per minute per IP
+  RATE_LIMIT_WINDOW: 60,    // window in seconds
+  MIN_TVL: 500,             // minimum TVL to include pool
+  FETCH_LIMIT: 250,         // max per page from Meteora API
+  MAX_TOP_N: 500,           // max pools to serve via API
   REQUEST_TIMEOUT: 25000,
-  // Meteora API: 30 RPS limit
-  FETCH_DELAY_MS: 100,      // 100ms between requests = max 10 RPS (safe margin)
   // Opsi 3: Smart merge ratios
   MERGE_RATIO: {
-    VOLUME: 0.35,     // 35% top volume pools (24h)
-    YIELD: 0.25,      // 25% top yield pools (feetvlratio)
-    TRENDING: 0.20,   // 20% trending by 12h volume
-    HIGH_TVL: 0.20,   // 20% highest TVL pools
+    VOLUME: 0.35,     // 35% top volume pools
+    YIELD: 0.25,      // 25% top yield pools
+    TRENDING: 0.20,   // 20% trending by daily yield
+    NEWEST: 0.20,     // 20% newest pools
   },
 };
 
@@ -33,13 +32,17 @@ const CORS_HEADERS = {
 // UTILITIES
 // ============================================
 
+/**
+ * Standardized success response format
+ * All responses have: success, data, meta, timestamp
+ */
 function successResponse(data, meta = {}) {
   return new Response(JSON.stringify({
     success: true,
     data,
     meta: {
       cache_ttl: CONFIG.CACHE_TTL,
-      version: '1.0.1-kv-optimized',
+      version: '1.0.0',
       ...meta,
     },
     timestamp: new Date().toISOString(),
@@ -52,6 +55,10 @@ function successResponse(data, meta = {}) {
   });
 }
 
+/**
+ * Standardized error response format
+ * All errors have: success, error, code, meta, timestamp
+ */
 function errorResponse(message, status = 500, code = 'INTERNAL_ERROR', meta = {}) {
   return new Response(JSON.stringify({
     success: false,
@@ -61,6 +68,7 @@ function errorResponse(message, status = 500, code = 'INTERNAL_ERROR', meta = {}
     },
     meta: {
       status,
+      retry_after: status === 429 ? CONFIG.RATE_LIMIT_WINDOW : null,
       ...meta,
     },
     timestamp: new Date().toISOString(),
@@ -73,6 +81,7 @@ function errorResponse(message, status = 500, code = 'INTERNAL_ERROR', meta = {}
   });
 }
 
+// Legacy support - will be removed in v2.0
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -83,8 +92,41 @@ function jsonResponse(data, status = 200) {
   });
 }
 
+function getClientIP(request) {
+  return request.headers.get('CF-Connecting-IP') ||
+         request.headers.get('X-Forwarded-For') ||
+         '0.0.0.0';
+}
+
 // ============================================
-// CACHE LAYER (KV-optimized)
+// RATE LIMITING (using KV)
+// ============================================
+
+async function checkRateLimit(ip, env) {
+  if (!env.POOL_CACHE) return true;
+
+  const key = `rate:${ip}`;
+  const current = await env.POOL_CACHE.get(key, 'json');
+
+  if (!current) {
+    await env.POOL_CACHE.put(key, JSON.stringify({ count: 1 }), {
+      expirationTtl: CONFIG.RATE_LIMIT_WINDOW,
+    });
+    return true;
+  }
+
+  if (current.count >= CONFIG.RATE_LIMIT) {
+    return false;
+  }
+
+  await env.POOL_CACHE.put(key, JSON.stringify({ count: current.count + 1 }), {
+    expirationTtl: CONFIG.RATE_LIMIT_WINDOW,
+  });
+  return true;
+}
+
+// ============================================
+// CACHE LAYER
 // ============================================
 
 async function getCached(key, env) {
@@ -115,44 +157,53 @@ async function setCache(key, data, env) {
       expirationTtl: CONFIG.CACHE_TTL * 2,
     });
   } catch (e) {
-    // Silently fail on KV write errors (429 when over limit)
-    console.error('Cache write error (non-fatal):', e.message);
+    console.error('Cache write error:', e.message);
   }
 }
 
 // ============================================
-// METEORA API FETCHING (30 RPS rate limit)
+// METEORA API FETCHING
 // ============================================
-
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchMeteoraPage(sortKey, limit, page = 0) {
-  // Simple fetch without AbortController (Workers compatible)
-  const url = `${CONFIG.METEORA_API}/pair/all_with_pagination?page=${page}&limit=${limit}&sort_key=${sortKey}&order_by=desc`;
-  const response = await fetch(url, {
-    headers: { 'User-Agent': 'Meteora-Calculator-API/1.0' },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
 
-  if (!response.ok) {
-    throw new Error(`Meteora API returned ${response.status}`);
+  try {
+    const url = `${CONFIG.METEORA_API}/pair/all_with_pagination?page=${page}&limit=${limit}&sort_key=${sortKey}&order_by=desc`;
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Meteora-Calculator-API/1.0' },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Meteora API returned ${response.status}`);
+    }
+
+    const raw = await response.json();
+    return raw.pairs || raw.data || (Array.isArray(raw) ? raw : []);
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const raw = await response.json();
-  return raw.pairs || raw.data || (Array.isArray(raw) ? raw : []);
 }
 
-function smartMerge(byVolume, byYield, byTrending, byHighTVL) {
+/**
+ * Smart merge pools from multiple sources with weighted distribution
+ * Opsi 3: Volume (35%) + Yield (25%) + Trending (20%) + Newest (20%)
+ */
+function smartMerge(byVolume, byYield, byTrending, byNewest) {
   const TARGET_COUNT = 250;
   const counts = {
     volume: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.VOLUME),
     yield: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.YIELD),
     trending: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.TRENDING),
-    highTVL: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.HIGH_TVL),
+    newest: Math.floor(TARGET_COUNT * CONFIG.MERGE_RATIO.NEWEST),
   };
 
   const seen = new Set();
   const merged = [];
 
+  // Helper to add pools without duplicates
   const addPools = (pools, limit) => {
     let added = 0;
     for (const pool of pools) {
@@ -166,36 +217,44 @@ function smartMerge(byVolume, byYield, byTrending, byHighTVL) {
     return added;
   };
 
+  // Add pools in order: Volume → Yield → Trending → Newest
   addPools(byVolume, counts.volume);
   addPools(byYield, counts.yield);
   addPools(byTrending, counts.trending);
-  addPools(byHighTVL, counts.highTVL);
+  addPools(byNewest, counts.newest);
 
+  // Fill remaining slots with any leftover pools
   const remaining = TARGET_COUNT - merged.length;
   if (remaining > 0) {
-    const all = [...byVolume, ...byYield, ...byTrending, ...byHighTVL];
+    const all = [...byVolume, ...byYield, ...byTrending, ...byNewest];
     addPools(all, remaining);
   }
 
   return merged;
 }
 
+/**
+ * Delay helper to respect Meteora API rate limit (30 RPS)
+ */
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function fetchMeteoraPoolsRaw() {
-  // Sequential fetch with delays to respect Meteora 30 RPS limit
-  // Using valid sort keys: volume, feetvlratio, volume12h, tvl
+  // Opsi 3: Fetch from 4 different sort criteria for maximum diversity
+  // Sequential fetch with delays to respect 30 RPS rate limit
 
   const byVolume = await fetchMeteoraPage('volume', 150);
-  await delay(CONFIG.FETCH_DELAY_MS);
+  await delay(100); // 100ms between requests = max 10 RPS
 
   const byYield = await fetchMeteoraPage('feetvlratio', 150);
-  await delay(CONFIG.FETCH_DELAY_MS);
+  await delay(100);
 
-  const byTrending = await fetchMeteoraPage('volume12h', 100);
-  await delay(CONFIG.FETCH_DELAY_MS);
+  const byTrending = await fetchMeteoraPage('trade_volume_24h', 100);
+  await delay(100);
 
-  const byHighTVL = await fetchMeteoraPage('tvl', 100);
+  const byNewest = await fetchMeteoraPage('updated_at', 100);
 
-  return smartMerge(byVolume, byYield, byTrending, byHighTVL);
+  // Smart merge with weighted distribution
+  return smartMerge(byVolume, byYield, byTrending, byNewest);
 }
 
 function transformPool(pool) {
@@ -204,6 +263,7 @@ function transformPool(pool) {
   const fees24h = parseFloat(pool.fees_24h || 0);
   const dailyYield = tvl > 0 ? (fees24h / tvl) * 100 : 0;
 
+  // Parse reserve amounts (raw integers from API)
   const reserveX = parseFloat(pool.reserve_x_amount || 0);
   const reserveY = parseFloat(pool.reserve_y_amount || 0);
   const decimalsX = parseInt(pool.decimals_x || 9);
@@ -247,16 +307,20 @@ function transformPool(pool) {
 }
 
 async function fetchAllPools(env) {
+  // Check cache first
   const cached = await getCached('all_pools', env);
   if (cached) return cached;
 
+  // Fetch from Meteora (by volume + by fees, merged & deduplicated)
   const rawPools = await fetchMeteoraPoolsRaw();
   const pools = rawPools
     .map(transformPool)
     .filter(p => p.is_active)
-    .sort((a, b) => b.volume_24h - a.volume_24h);
+    .sort((a, b) => b.volume_24h - a.volume_24h); // default sort by volume
 
+  // Cache the result
   await setCache('all_pools', pools, env);
+
   return pools;
 }
 
@@ -275,7 +339,7 @@ async function handleGetPools(env) {
     {
       last_updated: pools[0]?.last_updated || new Date().toISOString(),
       source: 'meteora_api',
-      merge_strategy: 'volume_yield_trending_tvl',
+      merge_strategy: 'volume_yield_trending_newest',
     }
   );
 }
@@ -348,7 +412,7 @@ async function handleHealth(env) {
       await env.POOL_CACHE.get('health_check');
       cacheStatus = 'operational';
     } catch {
-      cacheStatus = 'kv_limit_exceeded';
+      cacheStatus = 'error';
     }
   }
 
@@ -359,15 +423,15 @@ async function handleHealth(env) {
       cache_status: cacheStatus,
     },
     {
-      version: '1.0.1-kv-optimized',
+      version: '1.0.0',
       cache_ttl: CONFIG.CACHE_TTL,
-      kv_optimization: 'Rate limiting disabled, cache TTL: 15min',
+      rate_limit: CONFIG.RATE_LIMIT,
     }
   );
 }
 
 // ============================================
-// SUBSCRIBER HANDLERS (KV-optimized)
+// SUBSCRIBER HANDLERS
 // ============================================
 
 async function handleSubscribe(chatId, env) {
@@ -376,22 +440,12 @@ async function handleSubscribe(chatId, env) {
   }
 
   const key = 'subscribers';
-  let existing = [];
-
-  try {
-    existing = await env.POOL_CACHE.get(key, 'json') || [];
-  } catch (e) {
-    console.error('KV read error:', e.message);
-  }
+  const existing = await env.POOL_CACHE.get(key, 'json') || [];
 
   const isNew = !existing.includes(String(chatId));
   if (isNew) {
     existing.push(String(chatId));
-    try {
-      await env.POOL_CACHE.put(key, JSON.stringify(existing));
-    } catch (e) {
-      console.error('KV write error (non-fatal):', e.message);
-    }
+    await env.POOL_CACHE.put(key, JSON.stringify(existing));
   }
 
   return successResponse(
@@ -412,21 +466,9 @@ async function handleUnsubscribe(chatId, env) {
   }
 
   const key = 'subscribers';
-  let existing = [];
-
-  try {
-    existing = await env.POOL_CACHE.get(key, 'json') || [];
-  } catch (e) {
-    console.error('KV read error:', e.message);
-  }
-
+  const existing = await env.POOL_CACHE.get(key, 'json') || [];
   const updated = existing.filter(id => id !== String(chatId));
-
-  try {
-    await env.POOL_CACHE.put(key, JSON.stringify(updated));
-  } catch (e) {
-    console.error('KV write error (non-fatal):', e.message);
-  }
+  await env.POOL_CACHE.put(key, JSON.stringify(updated));
 
   return successResponse(
     {
@@ -441,14 +483,7 @@ async function handleUnsubscribe(chatId, env) {
 }
 
 async function handleGetSubscribers(env) {
-  let subscribers = [];
-
-  try {
-    subscribers = await env.POOL_CACHE.get('subscribers', 'json') || [];
-  } catch (e) {
-    console.error('KV read error:', e.message);
-  }
-
+  const subscribers = await env.POOL_CACHE.get('subscribers', 'json') || [];
   return successResponse(
     {
       subscribers,
@@ -463,6 +498,7 @@ async function handleGetSubscribers(env) {
 async function handleGetTrending(env) {
   const pools = await fetchAllPools(env);
 
+  // Sort by daily yield (highest first) for trending
   const trending = [...pools]
     .sort((a, b) => b.daily_yield - a.daily_yield)
     .slice(0, 10);
@@ -484,30 +520,38 @@ async function handleGetTrending(env) {
 // ============================================
 
 function matchRoute(pathname, method) {
+  // GET /api/health
   if (pathname === '/api/health') {
     return { handler: 'health' };
   }
+  // GET /api/pools
   if (pathname === '/api/pools') {
     return { handler: 'pools' };
   }
+  // GET /api/pools/trending
   if (pathname === '/api/pools/trending') {
     return { handler: 'trending' };
   }
+  // GET /api/pools/top/:n
   const topMatch = pathname.match(/^\/api\/pools\/top\/(\d+)$/);
   if (topMatch) {
     return { handler: 'top', params: { n: topMatch[1] } };
   }
+  // GET /api/pools/search
   if (pathname === '/api/pools/search') {
     return { handler: 'search' };
   }
+  // GET /api/pool/:id
   const poolMatch = pathname.match(/^\/api\/pool\/(.+)$/);
   if (poolMatch) {
     return { handler: 'pool', params: { id: poolMatch[1] } };
   }
+  // POST/DELETE /api/subscribers/:chatId
   const subMatch = pathname.match(/^\/api\/subscribers\/(.+)$/);
   if (subMatch) {
     return { handler: method === 'DELETE' ? 'unsubscribe' : 'subscribe', params: { chatId: subMatch[1] } };
   }
+  // GET /api/subscribers
   if (pathname === '/api/subscribers') {
     return { handler: 'getSubscribers' };
   }
@@ -520,24 +564,32 @@ function matchRoute(pathname, method) {
 
 export default {
   async fetch(request, env) {
+    // Handle CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
+    // Only allow GET, POST, DELETE
     if (!['GET', 'POST', 'DELETE'].includes(request.method)) {
       return errorResponse('Method not allowed', 405, 'METHOD_NOT_ALLOWED');
+    }
+
+    // Rate limiting
+    const ip = getClientIP(request);
+    const allowed = await checkRateLimit(ip, env);
+    if (!allowed) {
+      return errorResponse('Rate limit exceeded', 429, 'RATE_LIMIT_EXCEEDED');
     }
 
     const url = new URL(request.url);
     const route = matchRoute(url.pathname, request.method);
 
     if (!route) {
+      // Root path - show API info
       if (url.pathname === '/' || url.pathname === '') {
         return jsonResponse({
           name: 'Meteora Calculator API',
-          version: '1.0.1-kv-optimized',
-          kv_optimization: 'Disabled rate limiting, 15min cache TTL',
-          meteora_rate_limit: '30 RPS (sequential fetch with 100ms delays)',
+          version: '1.0.0',
           endpoints: [
             'GET /api/pools',
             'GET /api/pool/:address',
